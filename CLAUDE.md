@@ -27,7 +27,7 @@
 
 ## 코드 구조 (blank_test_maker.jsx 내부)
 ```
-상수/헬퍼          TAG_LIST, PTAG_LIST, tagColor(), emptyRow(), hdrRow(), padRows()
+상수/헬퍼          DEFAULT_TAGS, NO_TAG, tagColor(), emptyRow(), hdrRow(), padRows()
 행 상수            TOTAL_ROWS=30, ROW_H=27
 기본 데이터         PASSIVE_ROWS, RELATIVE_ROWS, DEFAULT_STATE
 TagPicker          컬러칩 팝업 태그 선택 컴포넌트
@@ -45,11 +45,11 @@ App (default)      메인 앱 — 사이드바 + 에디터 + 미리보기 분할
     id, groupId, title,
     rows: [{               // 30행 고정
       id,
-      l: { tag, text, ans, bold, hdr },      // 왼쪽 셀 (hdr: 헤더 스타일)
-      r: { num, ptag, text, ans, bold, hdr }  // 오른쪽 셀
+      l: { tag, mark, text, ans, bold, hdr, indent },  // 좌우 동일 구조
+      r: { tag, mark, text, ans, bold, hdr, indent }   // indent=0/1/2 (들여쓰기 레벨)
     }]
   }],
-  settings: { logo, slogan, customFont, customFontName }
+  settings: { logo, slogan, customFont, customFontName, tags }
 }
 ```
 
