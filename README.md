@@ -10,7 +10,8 @@
 
 ```
 ├── src/
-│   └── blank_test_maker.jsx   # 메인 앱 (React 단일 컴포넌트)
+│   ├── blank_test_maker.jsx   # 메인 앱 (React 단일 컴포넌트)
+│   └── main.jsx               # Vite 엔트리포인트 (storage 폴리필)
 ├── reference/                  # 기존 한글(HWP)로 제작한 원본 PDF (디자인 참고용)
 │   ├── 백지테스트_수동태_답지__시험지.pdf
 │   ├── 백지테스트_관계대명사_답지__시험지.pdf
@@ -19,6 +20,9 @@
 │   └── 백지테스트_명사와_관사_답지__시험지.pdf
 ├── docs/
 │   └── DESIGN_DECISIONS.md     # 설계 결정사항
+├── index.html                  # Vite HTML 엔트리
+├── vite.config.js
+├── package.json
 └── README.md
 ```
 
@@ -34,25 +38,26 @@
 
 ### 편집 기능
 - **태그 시스템**: 개념(파랑), 형태(앰버), 예문(초록), 종류(빨강), 주의(핑크레드), 예시(틸) — 컬러칩 팝업으로 선택
+- **헤더(H)**: 셀을 섹션 헤더 스타일로 전환 — 어느 행에서든 배치 가능, 왼쪽/오른쪽 독립
 - **연습문제 번호**: 1~15 원형 번호 배지
 - **연습문제 라벨**: [영작], [수동태], (1), (2)
 - **굵게(B)**: 섹션 제목용 볼드+밑줄 스타일
 - **답안(답)**: 시험지 모드에서 숨길 내용 마킹
 - **왼쪽/오른쪽 독립 이동**: ▲▼로 각 칸의 내용을 독립적으로 위/아래 이동
-- **삭제 안전장치**: 2단계 확인 (첫 클릭 → `?` 표시, 2초 내 재클릭시 삭제)
 
 ### 구조 관리
 - **단원(Unit)**: 하나의 시험지 = 하나의 단원
 - **그룹**: 단원들을 그룹으로 분류 (예: "문법 기초", "고급")
-- **섹션 헤더 편집**: SUMMARY/PRACTICE 헤더를 자유롭게 변경 가능
+- **30행 고정**: A4 노트 느낌의 고정 행 수 (추가/삭제 없음)
 - **복제**: 기존 단원을 복제해서 새 단원 생성
 - **그룹 간 이동**: 단원 메뉴(⋯)에서 그룹 이동
 
 ### 인쇄/출력
-- **A4 최적화**: 행 높이 고정(27px), 내용이 길어도 행이 늘어나지 않음
+- **A4 고정 레이아웃**: 740x1046px, 미리보기와 인쇄가 동일한 레이아웃
+- **행 높이 고정(27px)**: 내용이 길어도 행이 늘어나지 않음
 - **텍스트 클리핑**: 긴 텍스트는 잘림 처리 (ellipsis)
-- **시험지 모드**: 상단에 이름/날짜 기입란 자동 추가
-- **로고/학원명**: 설정에서 등록하면 하단에 표시
+- **슬로건/로고**: 설정에서 등록하면 하단에 표시 (슬로건 왼쪽, 로고 오른쪽)
+- **커스텀 폰트**: woff2/woff/ttf/otf 업로드 지원 (기본: Pretendard)
 
 ---
 
@@ -64,15 +69,13 @@
   groups: [{ id, name, collapsed }],
   units: [{
     id, groupId, title,
-    headerL: "SUMMARY",    // 왼쪽 컬럼 헤더 (편집 가능)
-    headerR: "PRACTICE",   // 오른쪽 컬럼 헤더 (편집 가능)
-    rows: [{
+    rows: [{               // 30행 고정
       id,
-      l: { tag, text, ans, bold },  // 왼쪽 셀
-      r: { num, ptag, text, ans, bold }  // 오른쪽 셀
+      l: { tag, text, ans, bold, hdr },      // 왼쪽 셀
+      r: { num, ptag, text, ans, bold, hdr }  // 오른쪽 셀
     }]
   }],
-  settings: { logo, academyName }
+  settings: { logo, slogan, customFont, customFontName }
 }
 ```
 
@@ -83,6 +86,7 @@
 | `text` | 양쪽 | 내용 텍스트 |
 | `ans` | 양쪽 | `true`면 시험지 모드에서 숨김 |
 | `bold` | 양쪽 | `true`면 굵게 + 밑줄 (섹션 제목용) |
+| `hdr` | 양쪽 | `true`면 헤더 스타일 (초록 배경, 굵은 테두리) |
 | `num` | 오른쪽 | 번호 배지 (1~15) |
 | `ptag` | 오른쪽 | 연습문제 라벨 ([영작], [수동태], (1), (2)) |
 
@@ -91,14 +95,16 @@
 ## 기술 스택
 
 - **React** (JSX 단일 파일)
+- **Vite** (로컬 개발서버, 핫 리로드)
+- **Pretendard** (웹폰트, CDN)
 - **인라인 스타일** (Tailwind 미사용, CSS-in-JS 패턴)
-- **window.storage API** (Claude Artifacts 영속 저장소)
+- **window.storage API** (Claude Artifacts) / **localStorage** (로컬)
 - **서버 없음** — 완전 클라이언트사이드
 
 ### 의존성
 React 기본 훅만 사용: `useState`, `useEffect`, `useRef`
 
-외부 라이브러리 없음.
+런타임 외부 라이브러리 없음. Vite/React는 dev 의존성.
 
 ---
 
@@ -136,13 +142,11 @@ React 기본 훅만 사용: `useState`, `useEffect`, `useRef`
 ### 현재 제한
 - [ ] 셀 병합(colspan) 미지원 — 한 줄 전체를 사용하는 레이아웃 불가
 - [ ] 드래그 앤 드롭 미지원 — 현재 ▲▼ 버튼으로 이동
-- [ ] 폰트 커스텀 미지원 — 시스템 한글 폰트 사용
 - [ ] 복수 페이지 단원 미지원 — 명사/관사처럼 4페이지짜리는 단원을 나눠서 관리 필요
 
 ### 향후 개선 가능
 - [ ] 나머지 3개 단원(형용사, 부사, 명사/관사) 데이터 내장
 - [ ] 단원 순서 드래그 정렬
-- [ ] 행 높이 커스텀 (현재 27px 고정)
 - [ ] PDF 직접 다운로드 (현재는 브라우저 인쇄 → PDF 저장)
 - [ ] 태그 종류 커스텀 (사용자 정의 태그/색상 추가)
 - [ ] 다크모드 편집기
@@ -152,11 +156,14 @@ React 기본 훅만 사용: `useState`, `useEffect`, `useRef`
 
 ## 실행 방법
 
-### Claude.ai Artifact로 실행
-`src/blank_test_maker.jsx` 파일을 Claude.ai의 Artifact로 렌더링.
+### 로컬 개발 (Vite)
+```bash
+npm install
+npm run dev    # → http://localhost:5173
+```
 
-### 로컬 개발 (향후)
-standalone HTML로 빌드하거나, Vite/CRA 등의 React 개발환경에서 실행 가능.
+### Claude.ai Artifact
+`src/blank_test_maker.jsx` 파일을 Claude.ai의 Artifact로 렌더링.
 
 ---
 
@@ -173,8 +180,10 @@ standalone HTML로 빌드하거나, Vite/CRA 등의 React 개발환경에서 실
   - 예시: `#14B8A6` (틸)
 
 ### A4 인쇄 규격
+- 전체 크기: `740x1046px` (미리보기 = 인쇄 동일)
+- 행 수: `30행` 고정
 - 행 높이: `27px` 고정
-- 테이블 폭: `740px` (미리보기 기준)
-- 컬럼: `1fr 1fr` (50:50)
-- 인쇄 마진: `10mm 12mm`
+- 컬럼: `1fr 1fr` (50:50), 좌우 구분선 2px 초록
+- 인쇄 마진: `@page margin:0` (컨텐츠 자체에 패딩 포함)
 - 빈 셀 배경: `#fafafa`, 내용 있는 셀: `#fff`
+- 헤더 셀 배경: `#e8f5e9`
