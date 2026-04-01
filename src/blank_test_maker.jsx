@@ -112,7 +112,7 @@ const DEFAULT_STATE = {
     { id: "u1", groupId: "g1", title: "수동태", rows: padRows(PASSIVE_ROWS) },
     { id: "u2", groupId: "g1", title: "관계대명사", rows: padRows(RELATIVE_ROWS) },
   ],
-  settings: { logo: null, academyName: "" },
+  settings: { logo: null, slogan: "" },
 };
 
 /* ═══════ TagPicker ═══════ */
@@ -230,23 +230,18 @@ const CELL_STYLE = {
 };
 const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" };
 
-function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
+function Preview({ unit, isBlank, logo, slogan, fontFamily }) {
   if (!unit) return <div style={{ padding: 40, color: "#bbb", textAlign: "center", fontSize: 13 }}>단원을 선택하세요</div>;
   return (
-    <div id="print-wrapper" style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%`, padding: "16px 12px" }}>
+    <div id="print-wrapper">
       <div id="print-area" style={{
-        padding: "20px 28px", width: 740, maxWidth: "100%", boxSizing: "border-box", margin: "0 auto",
-        fontFamily: "'Malgun Gothic','Noto Sans KR',sans-serif", background: "#fff",
+        padding: "20px 28px 20px", width: 740, height: 1046, boxSizing: "border-box",
+        fontFamily: fontFamily || "'Pretendard','Malgun Gothic',sans-serif", background: "#fff",
         boxShadow: "0 2px 12px rgba(0,0,0,.1)", borderRadius: 3,
+        display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
-        {/* Top: name/date + badge */}
-        <div style={{ display: "flex", justifyContent: isBlank ? "space-between" : "flex-end", alignItems: "center", marginBottom: 2 }}>
-          {isBlank && (
-            <div style={{ display: "flex", gap: 16, fontSize: 12.5, color: "#222" }}>
-              <span>이름 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 100, marginLeft: 4 }}>&nbsp;</span></span>
-              <span>날짜 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 80, marginLeft: 4 }}>&nbsp;</span></span>
-            </div>
-          )}
+        {/* Top: badge */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
           <div style={{ display: "flex" }}>
             {["백", "지", "테", "스", "트"].map((c, i) => (
               <span key={i} style={{
@@ -259,7 +254,7 @@ function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
           </div>
         </div>
         {/* Title */}
-        <h1 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 14px", color: "#111", letterSpacing: -0.5 }}>{unit.title}</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 900, margin: "0 0 20px", color: "#111", letterSpacing: -0.5 }}>{unit.title}</h1>
         {/* Table */}
         <div style={{ border: "2px solid #16a34a", borderRadius: 4, overflow: "hidden" }}>
           {/* Content rows — fixed height, no expansion */}
@@ -273,23 +268,22 @@ function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
             const emptyL = !row.l.tag && !row.l.text && !isHdrL;
             const emptyR = !row.r.num && !row.r.ptag && !row.r.text && !isHdrR;
             const HDR_STYLE = { padding: "0 12px", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12, color: "#16a34a", letterSpacing: 2, background: "#e8f5e9", height: ROW_H, maxHeight: ROW_H, overflow: "hidden" };
-            // border: thick green only between hdr and non-hdr rows
+            // border: per-cell — thick green at hdr/non-hdr boundary, independently for L and R
             const nextRow = unit.rows[i + 1];
-            const nextIsHdr = nextRow && (nextRow.l.hdr || nextRow.r.hdr);
-            const hdrBoundary = (isHdrRow && !nextIsHdr) || (!isHdrRow && nextIsHdr);
-            const btmBorder = i >= unit.rows.length - 1 ? "none" : hdrBoundary ? "2px solid #16a34a" : "1px solid #e5e7eb";
+            const isLast = i >= unit.rows.length - 1;
+            const btmL = isLast ? "none" : ((isHdrL && !(nextRow?.l.hdr)) || (!isHdrL && nextRow?.l.hdr)) ? "2px solid #16a34a" : "1px solid #e5e7eb";
+            const btmR = isLast ? "none" : ((isHdrR && !(nextRow?.r.hdr)) || (!isHdrR && nextRow?.r.hdr)) ? "2px solid #16a34a" : "1px solid #e5e7eb";
             return (
               <div key={row.id} style={{
                 display: "grid", gridTemplateColumns: "1fr 1fr",
-                borderBottom: btmBorder,
               }}>
                 {/* Left cell */}
                 {isHdrL ? (
-                  <div style={HDR_STYLE}>
+                  <div style={{ ...HDR_STYLE, borderBottom: btmL }}>
                     <span style={{ ...TEXT_CLIP }}>{row.l.text}</span>
                   </div>
                 ) : (
-                  <div style={{ ...CELL_STYLE, padding: "0 10px", background: emptyL ? "#fafafa" : "#fff" }}>
+                  <div style={{ ...CELL_STYLE, padding: "0 10px", background: emptyL ? "#fafafa" : "#fff", borderBottom: btmL }}>
                     {row.l.tag && (
                       <span style={{
                         display: "inline-block", padding: "1px 7px", borderRadius: 3,
@@ -308,11 +302,11 @@ function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
                 )}
                 {/* Right cell */}
                 {isHdrR ? (
-                  <div style={{ ...HDR_STYLE, borderLeft: "2px solid #16a34a" }}>
+                  <div style={{ ...HDR_STYLE, borderLeft: "2px solid #16a34a", borderBottom: btmR }}>
                     <span style={{ ...TEXT_CLIP }}>{row.r.text}</span>
                   </div>
                 ) : (
-                  <div style={{ ...CELL_STYLE, padding: "0 10px", borderLeft: "2px solid #16a34a", background: emptyR ? "#fafafa" : "#fff" }}>
+                  <div style={{ ...CELL_STYLE, padding: "0 10px", borderLeft: "2px solid #16a34a", background: emptyR ? "#fafafa" : "#fff", borderBottom: btmR }}>
                     {row.r.num && (
                       <span style={{
                         display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -337,11 +331,13 @@ function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
             );
           })}
         </div>
-        {/* Footer: logo + academy */}
-        {(logo || academyName) && (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 14 }}>
-            {logo && <img src={logo} style={{ height: 36, objectFit: "contain" }} alt="" />}
-            {academyName && <span style={{ fontSize: 13, fontWeight: 600, color: "#555" }}>{academyName}</span>}
+        {/* Spacer to push footer down */}
+        <div style={{ flex: 1 }} />
+        {/* Footer: slogan left, logo right */}
+        {(logo || slogan) && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "#777", letterSpacing: 0.3 }}>{slogan || ""}</span>
+            {logo ? <img src={logo} style={{ height: 44, objectFit: "contain" }} alt="" /> : <span />}
           </div>
         )}
       </div>
@@ -409,7 +405,12 @@ export default function App() {
         if (r?.value) {
           const p = JSON.parse(r.value);
           if (p.units) {
-            // migrate: headerL/headerR → first hdr row, pad to 28 rows
+            // migrate: academyName → slogan
+            if (p.settings?.academyName && !p.settings.slogan) {
+              p.settings.slogan = p.settings.academyName;
+              delete p.settings.academyName;
+            }
+            // migrate: headerL/headerR → first hdr row, pad to TOTAL_ROWS
             p.units = p.units.map((u) => {
               if (u.headerL || u.headerR) {
                 const hasHdr = u.rows.length > 0 && u.rows[0].l?.hdr;
@@ -460,6 +461,7 @@ export default function App() {
   const toggleGroup = (id) => setGroups((gs) => gs.map((g) => (g.id === id ? { ...g, collapsed: !g.collapsed } : g)));
 
   const handleLogo = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ logo: ev.target.result }); r.readAsDataURL(f); }; i.click(); };
+  const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
   const exportJSON = () => { const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "백지테스트_데이터.json"; a.click(); URL.revokeObjectURL(u); };
   const importJSON = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d.units) { setData(d); setCurId(d.units[0]?.id || null); } } catch { alert("잘못된 파일"); } }; r.readAsText(f); }; i.click(); };
   const resetAll = () => { if (confirm("초기화할까요?")) { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); } };
@@ -469,16 +471,23 @@ export default function App() {
   const ungrouped = data.units.filter((u) => !u.groupId || !data.groups.find((g) => g.id === u.groupId));
   const BS = { padding: "4px 9px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 10.5, cursor: "pointer", fontWeight: 500, color: "#555" };
 
+  const fontFamily = data.settings.customFont
+    ? `'CustomFont','Pretendard','Malgun Gothic',sans-serif`
+    : `'Pretendard','Malgun Gothic',sans-serif`;
+
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "'Malgun Gothic','Noto Sans KR',sans-serif", fontSize: 13, background: "#f0f2f5" }}>
+    <div style={{ display: "flex", height: "100vh", fontFamily, fontSize: 13, background: "#f0f2f5" }}>
       <style>{`
-        @page{size:A4;margin:10mm 12mm}
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
+        ${data.settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${data.settings.customFont}');font-display:swap}` : ''}
+        @page{size:A4;margin:0}
         @media print{
           html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important}
+          html,body{margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
           body *{visibility:hidden!important}
           #print-wrapper,#print-wrapper *{visibility:visible!important}
-          #print-wrapper{position:fixed!important;left:0!important;top:0!important;width:100%!important;height:auto!important;transform:none!important;padding:0!important;margin:0!important;overflow:visible!important}
-          #print-area{width:100%!important;max-width:100%!important;height:auto!important;padding:0!important;margin:0!important;transform:none!important;box-shadow:none!important;border-radius:0!important;box-sizing:border-box!important}
+          #print-wrapper{position:fixed!important;left:0!important;top:0!important;width:210mm!important;height:297mm!important;display:flex!important;justify-content:center!important;align-items:center!important;transform:none!important;padding:0!important;margin:0!important;overflow:hidden!important}
+          #print-area{box-shadow:none!important;border-radius:0!important;margin:0!important}
           .no-print{display:none!important}
         }
         input:focus,select:focus{border-color:#86efac!important}
@@ -583,8 +592,8 @@ export default function App() {
             )}
           </div>
           {/* Preview */}
-          <div style={{ overflowY: "auto", background: "#e8e8e8" }}>
-            <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} academyName={data.settings.academyName} scale={0.82} />
+          <div style={{ overflow: "auto", background: "#e8e8e8", display: "flex", justifyContent: "center", padding: "16px 8px" }}>
+            <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} slogan={data.settings.slogan} fontFamily={fontFamily} />
           </div>
         </div>
       </div>
@@ -595,8 +604,8 @@ export default function App() {
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, padding: 20, width: 360, boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700 }}>설정</h3>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>학원 이름</label>
-              <input value={data.settings.academyName || ""} onChange={(e) => setSettings({ academyName: e.target.value })} placeholder="시험지 하단에 표시" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>슬로건</label>
+              <input value={data.settings.slogan || ""} onChange={(e) => setSettings({ slogan: e.target.value })} placeholder="예: 손에 잡히는 영어" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>로고 이미지</label>
@@ -609,6 +618,19 @@ export default function App() {
                   </>
                 )}
               </div>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>커스텀 폰트</label>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <button onClick={handleFont} style={{ padding: "6px 12px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11.5, cursor: "pointer" }}>폰트 파일 선택</button>
+                {data.settings.customFont && (
+                  <>
+                    <span style={{ fontSize: 11, color: "#555" }}>{data.settings.customFontName || "업로드됨"}</span>
+                    <button onClick={() => setSettings({ customFont: null, customFontName: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>삭제</button>
+                  </>
+                )}
+              </div>
+              <span style={{ fontSize: 10, color: "#999", marginTop: 2, display: "block" }}>woff2, woff, ttf, otf 지원 (기본: Pretendard)</span>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
               <button onClick={() => setSettingsOpen(false)} style={{ padding: "7px 18px", borderRadius: 5, border: "none", background: "#16a34a", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>닫기</button>
