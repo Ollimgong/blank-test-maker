@@ -12,12 +12,6 @@
 ├── src/
 │   ├── blank_test_maker.jsx   # 메인 앱 (React 단일 컴포넌트)
 │   └── main.jsx               # Vite 엔트리포인트 (storage 폴리필)
-├── reference/                  # 기존 한글(HWP)로 제작한 원본 PDF (디자인 참고용)
-│   ├── 백지테스트_수동태_답지__시험지.pdf
-│   ├── 백지테스트_관계대명사_답지__시험지.pdf
-│   ├── 백지테스트_형용사_답지__시험지.pdf
-│   ├── 백지테스트_부사_답지__시험지.pdf
-│   └── 백지테스트_명사와_관사_답지__시험지.pdf
 ├── docs/
 │   └── DESIGN_DECISIONS.md     # 설계 결정사항
 ├── index.html                  # Vite HTML 엔트리
@@ -72,8 +66,8 @@
     id, groupId, title,
     rows: [{               // 30행 고정
       id,
-      l: { tag, mark, text, ans, bold, hdr, indent },  // 좌우 동일 구조
-      r: { tag, mark, text, ans, bold, hdr, indent }
+      l: { tag, mark, text, vis, bold, hdr, indent },  // 좌우 동일 구조
+      r: { tag, mark, text, vis, bold, hdr, indent }
     }]
   }],
   settings: { logo, slogan, customFont, customFontName, tags, numTagColor }
@@ -86,7 +80,7 @@
 | `tag` | 컬러 태그 — 숫자태그(1~10) 또는 일반태그(개념/형태/예문 등) |
 | `mark` | 자유 텍스트 마커 — `[영작]`, `(1)` 등 직접 입력 |
 | `text` | 내용 텍스트 |
-| `ans` | `true`면 시험지 모드에서 숨김 |
+| `vis` | `true`면 시험지 모드에서도 표시 (false면 숨김) |
 | `bold` | `true`면 굵게 + 밑줄 (섹션 제목용) |
 | `hdr` | `true`면 헤더 스타일 (초록 배경, 굵은 테두리) |
 | `indent` | 들여쓰기 레벨 (0=없음, 1=태그까지, 2=태그+마커까지) |
@@ -106,25 +100,6 @@
 React 기본 훅만 사용: `useState`, `useEffect`, `useRef`
 
 런타임 외부 라이브러리 없음. Vite/React는 dev 의존성.
-
----
-
-## 참고 파일 (reference/)
-
-기존 한글(HWP)로 제작한 원본 백지테스트 PDF. 디자인 및 레이아웃 참고용.
-
-각 파일은 2페이지 구성:
-- **1페이지 (답지)**: 모든 내용이 채워진 버전
-- **2페이지 (시험지)**: 학생이 직접 채우는 빈칸 버전
-
-### 파일별 특징
-| 파일 | 레이아웃 특징 |
-|------|--------------|
-| 수동태 | 기본 SUMMARY + PRACTICE 2단 |
-| 관계대명사 | 기본 SUMMARY + PRACTICE 2단 |
-| 형용사 | SUMMARY + PRACTICE 2단 (수량형용사 포함) |
-| **부사** | **SUMMARY만 2단** (PRACTICE 헤더 없음) — 섹션 헤더 편집 기능이 필요했던 이유 |
-| 명사와 관사 | 4페이지 (명사 2p + 관사 2p), 불규칙 복수형 표 포함 |
 
 ---
 

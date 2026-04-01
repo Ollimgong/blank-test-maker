@@ -6,7 +6,6 @@
 ## 핵심 파일
 - `src/blank_test_maker.jsx` — 유일한 소스 파일 (React 단일 컴포넌트)
 - `src/main.jsx` — Vite 엔트리포인트 (window.storage 폴리필 포함)
-- `reference/*.pdf` — 기존 한글(HWP)로 제작한 원본 백지테스트 (디자인 참고용, 수정 금지)
 - `docs/DESIGN_DECISIONS.md` — 설계 결정사항과 대화 히스토리
 
 ## 실행 환경
@@ -23,15 +22,16 @@
 2. **A4 인쇄 최적화 필수**: 30행 고정, 행 높이 27px, 740x1046px 고정 레이아웃
 3. **왼쪽/오른쪽 독립**: 셀 배경, 이동(▲▼), 헤더(H) 속성, 테두리 모두 각 칸 독립
 4. **서버 없음**: 완전 클라이언트사이드, 서버 의존 코드 금지
-5. **reference/ 디렉토리**: 읽기 전용 참고 자료, 코드에서 참조하지 않음
+5. **외부 의존 금지**: 런타임 외부 라이브러리 사용하지 않음
 
 ## 코드 구조 (blank_test_maker.jsx 내부)
 ```
 상수/헬퍼          DEFAULT_TAGS, NO_TAG, tagColor(), emptyRow(), hdrRow(), padRows()
 행 상수            TOTAL_ROWS=30, ROW_H=27
 기본 데이터         PASSIVE_ROWS, RELATIVE_ROWS, DEFAULT_STATE
-TagPicker          컬러칩 팝업 태그 선택 컴포넌트
-EditorRow          편집 행 (왼쪽/오른쪽 독립 ▲▼, H/B/답 토글)
+CellProps          셀 속성 팝오버 (태그/마커/들여쓰기 선택)
+EditorCell         편집 셀 (왼쪽/오른쪽 독립, H/B/표시/▲▼)
+EditorSideGroup    편집 영역 좌/우 컨테이너
 Preview            A4 고정 크기 미리보기 (답지/시험지 모드, 740x1046px)
 UnitItem           사이드바 단원 항목 (메뉴: 복제/삭제/그룹이동)
 App (default)      메인 앱 — 사이드바 + 에디터 + 미리보기 분할
@@ -45,8 +45,8 @@ App (default)      메인 앱 — 사이드바 + 에디터 + 미리보기 분할
     id, groupId, title,
     rows: [{               // 30행 고정
       id,
-      l: { tag, mark, text, ans, bold, hdr, indent },  // 좌우 동일 구조
-      r: { tag, mark, text, ans, bold, hdr, indent }   // indent=0/1/2 (들여쓰기 레벨)
+      l: { tag, mark, text, vis, bold, hdr, indent },  // 좌우 동일 구조
+      r: { tag, mark, text, vis, bold, hdr, indent }   // indent=0/1/2 (들여쓰기 레벨)
     }]
   }],
   settings: { logo, slogan, customFont, customFontName, tags }

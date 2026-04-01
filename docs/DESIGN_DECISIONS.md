@@ -64,7 +64,7 @@ Claude Code에서 작업을 이어갈 때 맥락 파악용.
 ## 좌우 셀 구조 완전 대칭화
 
 - 기존: 왼쪽(`tag`, `text`)과 오른쪽(`num`, `ptag`, `text`)이 비대칭
-- 변경: 좌우 모두 `{ tag, mark, text, ans, bold, hdr, indent }` 동일 구조
+- 변경: 좌우 모두 `{ tag, mark, text, vis, bold, hdr, indent }` 동일 구조
 - 이유: 번호나 태그를 양쪽 어디서든 쓰고 싶다는 요구. 코드도 `EditorCell` 하나로 통합되어 중복 제거
 
 ## 태그 통합 — 숫자태그 + 일반태그
@@ -134,7 +134,7 @@ Claude Code에서 작업을 이어갈 때 맥락 파악용.
 - 기존 데이터 자동 마이그레이션 (headerL/R → hdr, academyName → slogan)
 
 ### 6차: 태그 시스템 대폭 개선
-- 좌우 셀 구조 완전 대칭화 (`{ tag, mark, text, ans, bold, hdr, indent }`)
+- 좌우 셀 구조 완전 대칭화 (`{ tag, mark, text, vis, bold, hdr, indent }`)
 - TAG_LIST/PTAG_LIST 이원화 → 통합 태그 시스템 (설정에서 관리)
 - 숫자태그(1~10) 하드코딩 분리, 색상만 설정 변경 가능
 - 마커(mark): 자유 텍스트 접두어 ([영작], (1) 등)
