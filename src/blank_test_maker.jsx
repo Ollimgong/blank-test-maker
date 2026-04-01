@@ -234,15 +234,18 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
   );
 }
 
-function EditorRow({ row, onChange, onMoveLUp, onMoveLDown, onMoveRUp, onMoveRDown, first, last, tags, numColor }) {
-  const upd = (s, f, v) => onChange({ ...row, [s]: { ...row[s], [f]: v } });
+function EditorSideGroup({ side, label, color, rows, onCellChange, onMove, tags, numColor }) {
   return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1,
-      background: "#e0e0e0", borderRadius: 5, marginBottom: 2,
-    }}>
-      <EditorCell side="l" cell={row.l} upd={(f, v) => upd("l", f, v)} onUp={onMoveLUp} onDown={onMoveLDown} first={first} last={last} tags={tags} numColor={numColor} />
-      <EditorCell side="r" cell={row.r} upd={(f, v) => upd("r", f, v)} onUp={onMoveRUp} onDown={onMoveRDown} first={first} last={last} tags={tags} numColor={numColor} />
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 4px 4px", position: "sticky", top: 0, zIndex: 5, background: "#fafafa" }}>
+        <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 4, background: color, color: "#fff", fontSize: 11, fontWeight: 800 }}>{label}</span>
+        <span style={{ fontSize: 10, color: "#aaa" }}>{rows.length}행</span>
+      </div>
+      {rows.map((row, i) => (
+        <div key={row.id} style={{ borderRadius: 4, marginBottom: 1, background: "#e0e0e0" }}>
+          <EditorCell side={side} cell={row[side]} upd={(f, v) => onCellChange(row.id, side, f, v)} onUp={() => onMove(row.id, side, -1)} onDown={() => onMove(row.id, side, 1)} first={i === 0} last={i === rows.length - 1} tags={tags} numColor={numColor} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -422,6 +425,13 @@ export default function App() {
   const [editGroupId, setEditGroupId] = useState(null);
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [newGrp, setNewGrp] = useState("");
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const fileMenuRef = useRef(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [previewZoom, setPreviewZoom] = useState(100);
+  const [splitPct, setSplitPct] = useState(50);
+  const splitDragging = useRef(false);
+  const splitContainerRef = useRef(null);
 
   const unit = data.units.find((u) => u.id === curId) || null;
 
@@ -497,6 +507,12 @@ export default function App() {
     (async () => { try { await window.storage.set("bt-v3", JSON.stringify(data)); } catch {} })();
   }, [data, loaded]);
 
+  useEffect(() => {
+    if (!fileMenuOpen) return;
+    const h = (e) => { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); };
+    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
+  }, [fileMenuOpen]);
+
   const setUnits = (fn) => setData((d) => ({ ...d, units: typeof fn === "function" ? fn(d.units) : fn }));
   const setGroups = (fn) => setData((d) => ({ ...d, groups: typeof fn === "function" ? fn(d.groups) : fn }));
   const setSettings = (s) => setData((d) => ({ ...d, settings: { ...d.settings, ...s } }));
@@ -511,6 +527,7 @@ export default function App() {
   };
 
   const updateRow = (rid, nr) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.map((r) => (r.id === rid ? nr : r)) }));
+  const updateCellField = (rid, side, field, val) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.map((r) => r.id === rid ? { ...r, [side]: { ...r[side], [field]: val } } : r) }));
   const delRow = (rid) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.filter((r) => r.id !== rid) }));
   const moveCellContent = (rid, side, dir) => updateUnit(curId, (u) => {
     const rs = u.rows.map(r => ({ ...r, l: { ...r.l }, r: { ...r.r } }));
@@ -528,8 +545,14 @@ export default function App() {
 
   const handleLogo = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ logo: ev.target.result }); r.readAsDataURL(f); }; i.click(); };
   const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
-  const exportJSON = () => { const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "백지테스트_데이터.json"; a.click(); URL.revokeObjectURL(u); };
-  const importJSON = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d.units) { setData(d); setCurId(d.units[0]?.id || null); } } catch { alert("잘못된 파일"); } }; r.readAsText(f); }; i.click(); };
+  const exportJSON = () => {
+    const d = new Date(); const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `백지테스트_${ds}.json`; a.click(); URL.revokeObjectURL(u);
+  };
+  const importJSON = () => {
+    if (!confirm("주의: 현재 작업 중인 데이터가 모두 교체됩니다.\n\n미리 '내 데이터 저장'으로 백업하셨나요?")) return;
+    const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d.units) { setData(d); setCurId(d.units[0]?.id || null); } else { alert("올바른 데이터 파일이 아닙니다."); } } catch { alert("잘못된 파일입니다."); } }; r.readAsText(f); }; i.click();
+  };
   const exportUnit = (id) => {
     const u = data.units.find((x) => x.id === id); if (!u) return;
     const usedTags = new Set();
@@ -570,9 +593,18 @@ export default function App() {
       `}</style>
 
       {/* SIDEBAR */}
-      <div className="no-print" style={{ width: 220, background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div className="no-print" style={{ width: sidebarOpen ? 220 : 44, background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0, transition: "width .2s ease" }}>
+        {!sidebarOpen ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, paddingTop: 10 }}>
+            <button onClick={() => setSidebarOpen(true)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16, padding: 4, color: "#16a34a" }} title="사이드바 열기">☰</button>
+            {["백", "지", "테", "스", "트"].map((c, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 18, color: "#fff", fontWeight: 800, fontSize: 9, borderRadius: 2, background: i % 2 === 0 ? "#16a34a" : "#15803d" }}>{c}</span>
+            ))}
+          </div>
+        ) : <>
         <div style={{ padding: "10px 12px 8px", borderBottom: "1px solid #e5e7eb" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <button onClick={() => setSidebarOpen(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", color: "#aaa", flexShrink: 0 }} title="사이드바 접기">◀</button>
             {["백", "지", "테", "스", "트"].map((c, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 18, color: "#fff", fontWeight: 800, fontSize: 9, borderRadius: 2, background: i % 2 === 0 ? "#16a34a" : "#15803d" }}>{c}</span>
             ))}
@@ -618,13 +650,33 @@ export default function App() {
             </div>
           )}
         </div>
-        <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 3, flexWrap: "wrap" }}>
+        <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 4, position: "relative" }}>
           <button onClick={() => setSettingsOpen(true)} style={{ ...BS, flex: 1 }}>⚙ 설정</button>
-          <button onClick={importUnits} title="단원 가져오기" style={BS}>📥</button>
-          <button onClick={exportJSON} title="전체 내보내기" style={BS}>↓</button>
-          <button onClick={importJSON} title="전체 불러오기" style={BS}>↑</button>
-          <button onClick={resetAll} title="초기화" style={{ ...BS, color: "#ef4444" }}>↺</button>
+          <div ref={fileMenuRef} style={{ position: "relative", flex: 1 }}>
+            <button onClick={() => setFileMenuOpen(!fileMenuOpen)} style={{ ...BS, width: "100%", background: fileMenuOpen ? "#f0fdf4" : "#fff" }}>📁 파일</button>
+            {fileMenuOpen && (
+              <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,.12)", padding: 6, zIndex: 50, minWidth: 190 }}>
+                <div style={{ padding: "4px 8px", fontSize: 9, color: "#999", fontWeight: 700, letterSpacing: 1 }}>내 데이터</div>
+                <button onClick={() => { exportJSON(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#f0fdf4"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  💾 내 데이터 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>JSON 파일로 PC에 다운로드</span>
+                </button>
+                <button onClick={() => { importJSON(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#f0fdf4"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  📂 내 데이터 불러오기<br/><span style={{ fontSize: 9.5, color: "#999" }}>저장한 JSON 파일로 전체 복원</span>
+                </button>
+                <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
+                <div style={{ padding: "4px 8px", fontSize: 9, color: "#999", fontWeight: 700, letterSpacing: 1 }}>단원 공유</div>
+                <button onClick={() => { importUnits(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#f0fdf4"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  📥 단원 가져오기<br/><span style={{ fontSize: 9.5, color: "#999" }}>다른 선생님의 단원 파일 추가</span>
+                </button>
+                <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
+                <button onClick={() => { resetAll(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#ef4444" }} onMouseEnter={(e) => e.target.style.background="#fef2f2"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  ↺ 초기화
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+        </>}
       </div>
 
       {/* MAIN */}
@@ -651,25 +703,41 @@ export default function App() {
         </div>
 
         {/* Split */}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 0 }}>
+        <div ref={splitContainerRef} style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}
+          onMouseMove={(e) => { if (!splitDragging.current) return; const rect = splitContainerRef.current.getBoundingClientRect(); const pct = ((e.clientX - rect.left) / rect.width) * 100; setSplitPct(Math.max(20, Math.min(80, pct))); }}
+          onMouseUp={() => { splitDragging.current = false; }}
+          onMouseLeave={() => { splitDragging.current = false; }}
+        >
           {/* Editor */}
-          <div className="no-print" style={{ overflowY: "auto", padding: "8px 10px", background: "#fafafa", borderRight: "1px solid #e5e7eb" }}>
+          <div className="no-print" style={{ width: `${splitPct}%`, overflowY: "auto", padding: "8px 10px", background: "#fafafa" }}>
             {unit ? (
               <>
-                {unit.rows.map((row, i) => (
-                  <EditorRow key={row.id} row={row} onChange={(r) => updateRow(row.id, r)} onMoveLUp={() => moveCellContent(row.id, 'l', -1)} onMoveLDown={() => moveCellContent(row.id, 'l', 1)} onMoveRUp={() => moveCellContent(row.id, 'r', -1)} onMoveRDown={() => moveCellContent(row.id, 'r', 1)} first={i === 0} last={i === unit.rows.length - 1} tags={data.settings.tags} numColor={data.settings.numTagColor} />
-                ))}
+                <EditorSideGroup side="l" label="왼쪽 (L)" color="#16a34a" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={data.settings.tags} numColor={data.settings.numTagColor} />
+                <EditorSideGroup side="r" label="오른쪽 (R)" color="#ea580c" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={data.settings.tags} numColor={data.settings.numTagColor} />
               </>
             ) : (
               <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
                 <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-                <div style={{ fontSize: 12 }}>왼쪽에서 단원을 선택하세요</div>
+                <div style={{ fontSize: 12 }}>사이드바에서 단원을 선택하세요</div>
               </div>
             )}
           </div>
+          {/* Drag handle */}
+          <div className="no-print" onMouseDown={() => { splitDragging.current = true; }}
+            style={{ width: 6, cursor: "col-resize", background: "#e5e7eb", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}
+          >
+            <div style={{ width: 2, height: 32, borderRadius: 1, background: "#aaa" }} />
+          </div>
           {/* Preview */}
-          <div style={{ overflow: "auto", background: "#e8e8e8", display: "flex", justifyContent: "center", padding: "16px 8px" }}>
-            <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} slogan={data.settings.slogan} fontFamily={fontFamily} tags={data.settings.tags} numColor={data.settings.numTagColor} />
+          <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
+            <div className="no-print" style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 6, flexShrink: 0 }}>
+              <button onClick={() => setPreviewZoom(Math.max(30, previewZoom - 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>−</button>
+              <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 36, textAlign: "center" }}>{previewZoom}%</span>
+              <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
+            </div>
+            <div style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
+              <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} slogan={data.settings.slogan} fontFamily={fontFamily} tags={data.settings.tags} numColor={data.settings.numTagColor} />
+            </div>
           </div>
         </div>
       </div>
