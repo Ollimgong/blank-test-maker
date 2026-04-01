@@ -24,9 +24,16 @@ const PTAG_LIST = [
 const tagColor = (v) => TAG_LIST.find((t) => t.v === v) || TAG_LIST[0];
 const emptyRow = () => ({
   id: uid(),
-  l: { tag: "", text: "", ans: false, bold: false },
-  r: { num: "", ptag: "", text: "", ans: false, bold: false },
+  l: { tag: "", text: "", ans: false, bold: false, hdr: false },
+  r: { num: "", ptag: "", text: "", ans: false, bold: false, hdr: false },
 });
+
+/* ═══════ row helpers ═══════ */
+const TOTAL_ROWS = 30; // A4 fixed row count
+const padRows = (rows) => {
+  if (rows.length >= TOTAL_ROWS) return rows.slice(0, TOTAL_ROWS);
+  return [...rows, ...Array.from({ length: TOTAL_ROWS - rows.length }, emptyRow)];
+};
 
 /* ═══════ default data ═══════ */
 const mk = (ld, rd) => ({
@@ -35,7 +42,14 @@ const mk = (ld, rd) => ({
   r: { num: rd.n || "", ptag: rd.p || "", text: rd.x || "", ans: !!rd.a, bold: !!rd.b },
 });
 
+const hdrRow = (lText, rText) => ({
+  id: uid(),
+  l: { tag: "", text: lText, ans: false, bold: false, hdr: true },
+  r: { num: "", ptag: "", text: rText, ans: false, bold: false, hdr: true },
+});
+
 const PASSIVE_ROWS = [
+  hdrRow("SUMMARY", "PRACTICE"),
   mk({ x: "능동: 주어가 동사를 직접 함", a: 1 }, { x: "영작 & 수동태 전환 연습", b: 1 }),
   mk({ x: "수동: 주어가 동사를 다른 행위자에 의해 당함", a: 1 }, { n: "1", x: "나의 친구들은 나를 사랑한다." }),
   mk({}, { p: "영작", x: "My friends love me.", a: 1 }),
@@ -63,6 +77,7 @@ const PASSIVE_ROWS = [
 ];
 
 const RELATIVE_ROWS = [
+  hdrRow("SUMMARY", "PRACTICE"),
   mk({ x: "관계대명사는 [접속사 + 대명사] 의 역할을 하며", a: 1 }, { x: "영작연습", b: 1 }),
   mk({ x: "관계대명사가 이끄는 절은 앞의 명사(선행사)를 수식한다", a: 1 }, { n: "1", x: "나는 착한 소년을 안다." }),
   mk({ x: "주격관계대명사", b: 1 }, { p: "(1)", x: "I know a boy.", a: 1 }),
@@ -94,8 +109,8 @@ const RELATIVE_ROWS = [
 const DEFAULT_STATE = {
   groups: [{ id: "g1", name: "문법 기초", collapsed: false }],
   units: [
-    { id: "u1", groupId: "g1", title: "수동태", headerL: "SUMMARY", headerR: "PRACTICE", rows: PASSIVE_ROWS },
-    { id: "u2", groupId: "g1", title: "관계대명사", headerL: "SUMMARY", headerR: "PRACTICE", rows: RELATIVE_ROWS },
+    { id: "u1", groupId: "g1", title: "수동태", rows: padRows(PASSIVE_ROWS) },
+    { id: "u2", groupId: "g1", title: "관계대명사", rows: padRows(RELATIVE_ROWS) },
   ],
   settings: { logo: null, academyName: "" },
 };
@@ -151,32 +166,30 @@ function CellArrows({ onUp, onDown, first, last }) {
   );
 }
 
-function EditorRow({ row, onChange, onDelete, onMoveLUp, onMoveLDown, onMoveRUp, onMoveRDown, first, last }) {
+function EditorRow({ row, onChange, onMoveLUp, onMoveLDown, onMoveRUp, onMoveRDown, first, last }) {
   const upd = (s, f, v) => onChange({ ...row, [s]: { ...row[s], [f]: v } });
   const tc = tagColor(row.l.tag);
-  const [confirmDel, setConfirmDel] = useState(false);
-  useEffect(() => { if (confirmDel) { const t = setTimeout(() => setConfirmDel(false), 2000); return () => clearTimeout(t); } }, [confirmDel]);
-  const handleDelete = () => { if (confirmDel) { onDelete(); setConfirmDel(false); } else { setConfirmDel(true); } };
   return (
     <div style={{
-      display: "grid", gridTemplateColumns: "1fr 1fr 22px", gap: 1,
+      display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1,
       background: "#e0e0e0", borderRadius: 5, marginBottom: 2,
     }}>
       {/* LEFT */}
       <div style={{
-        background: row.l.tag ? `${tc.c}0a` : "#fff", padding: "3px 4px",
+        background: row.l.hdr ? "#e8f5e9" : row.l.tag ? `${tc.c}0a` : "#fff", padding: "3px 4px",
         display: "flex", alignItems: "center", gap: 3,
-        borderLeft: row.l.tag ? `3px solid ${tc.c}` : "3px solid transparent",
+        borderLeft: row.l.hdr ? "3px solid #16a34a" : row.l.tag ? `3px solid ${tc.c}` : "3px solid transparent",
       }}>
         <CellArrows onUp={onMoveLUp} onDown={onMoveLDown} first={first} last={last} />
         <TagPicker value={row.l.tag} onChange={(v) => upd("l", "tag", v)} />
         <input value={row.l.text} onChange={(e) => upd("l", "text", e.target.value)} placeholder="내용..."
           style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: "#fff", minWidth: 0, fontWeight: row.l.bold ? 700 : 400 }} />
+        <MiniBtn active={row.l.hdr} onClick={() => upd("l", "hdr", !row.l.hdr)} title="헤더" color="#16a34a" textColor="#fff">H</MiniBtn>
         <MiniBtn active={row.l.bold} onClick={() => upd("l", "bold", !row.l.bold)} title="굵게">B</MiniBtn>
         <MiniBtn active={row.l.ans} onClick={() => upd("l", "ans", !row.l.ans)} title="답안" color="#fbbf24" textColor="#78350f">답</MiniBtn>
       </div>
       {/* RIGHT */}
-      <div style={{ background: "#fff", padding: "3px 4px", display: "flex", alignItems: "center", gap: 3 }}>
+      <div style={{ background: row.r.hdr ? "#e8f5e9" : "#fff", padding: "3px 4px", display: "flex", alignItems: "center", gap: 3 }}>
         <CellArrows onUp={onMoveRUp} onDown={onMoveRDown} first={first} last={last} />
         <select value={row.r.num} onChange={(e) => upd("r", "num", e.target.value)}
           style={{ width: 32, padding: "1px", borderRadius: 3, fontSize: 11, fontWeight: 700, border: row.r.num ? "none" : "1px dashed #ccc", textAlign: "center", background: row.r.num ? "#16a34a" : "#f9fafb", color: row.r.num ? "#fff" : "#aaa", cursor: "pointer", appearance: "none", WebkitAppearance: "none" }}>
@@ -189,18 +202,9 @@ function EditorRow({ row, onChange, onDelete, onMoveLUp, onMoveLDown, onMoveRUp,
         </select>
         <input value={row.r.text} onChange={(e) => upd("r", "text", e.target.value)} placeholder="내용..."
           style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: "#fff", minWidth: 0, fontWeight: row.r.bold ? 700 : 400 }} />
+        <MiniBtn active={row.r.hdr} onClick={() => upd("r", "hdr", !row.r.hdr)} title="헤더" color="#16a34a" textColor="#fff">H</MiniBtn>
         <MiniBtn active={row.r.bold} onClick={() => upd("r", "bold", !row.r.bold)} title="굵게">B</MiniBtn>
         <MiniBtn active={row.r.ans} onClick={() => upd("r", "ans", !row.r.ans)} title="답안" color="#fbbf24" textColor="#78350f">답</MiniBtn>
-      </div>
-      {/* DELETE — 2-step to prevent accidents */}
-      <div style={{ background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <button onClick={handleDelete} title={confirmDel ? "한번 더 누르면 삭제" : "삭제"} style={{
-          border: "none", borderRadius: 3, cursor: "pointer", fontSize: 10, padding: "4px 3px", lineHeight: 1,
-          background: confirmDel ? "#fee2e2" : "transparent",
-          color: confirmDel ? "#dc2626" : "#ccc",
-          fontWeight: confirmDel ? 700 : 400,
-          transition: "all .15s",
-        }}>{confirmDel ? "?" : "✕"}</button>
       </div>
     </div>
   );
@@ -228,23 +232,21 @@ const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "n
 
 function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
   if (!unit) return <div style={{ padding: 40, color: "#bbb", textAlign: "center", fontSize: 13 }}>단원을 선택하세요</div>;
-  const hL = unit.headerL || "SUMMARY";
-  const hR = unit.headerR || "PRACTICE";
   return (
-    <div style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%`, padding: "16px 12px" }}>
+    <div id="print-wrapper" style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: `${100 / scale}%`, padding: "16px 12px" }}>
       <div id="print-area" style={{
-        padding: "20px 28px", width: 740, boxSizing: "border-box", margin: "0 auto",
+        padding: "20px 28px", width: 740, maxWidth: "100%", boxSizing: "border-box", margin: "0 auto",
         fontFamily: "'Malgun Gothic','Noto Sans KR',sans-serif", background: "#fff",
         boxShadow: "0 2px 12px rgba(0,0,0,.1)", borderRadius: 3,
       }}>
-        {/* Header row */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-          {isBlank ? (
-            <div style={{ display: "flex", gap: 20, fontSize: 13, color: "#222" }}>
-              <span>이름 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 110, marginLeft: 4 }}>&nbsp;</span></span>
-              <span>날짜 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 90, marginLeft: 4 }}>&nbsp;</span></span>
+        {/* Top: name/date + badge */}
+        <div style={{ display: "flex", justifyContent: isBlank ? "space-between" : "flex-end", alignItems: "center", marginBottom: 2 }}>
+          {isBlank && (
+            <div style={{ display: "flex", gap: 16, fontSize: 12.5, color: "#222" }}>
+              <span>이름 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 100, marginLeft: 4 }}>&nbsp;</span></span>
+              <span>날짜 : <span style={{ display: "inline-block", borderBottom: "1px solid #222", width: 80, marginLeft: 4 }}>&nbsp;</span></span>
             </div>
-          ) : <div />}
+          )}
           <div style={{ display: "flex" }}>
             {["백", "지", "테", "스", "트"].map((c, i) => (
               <span key={i} style={{
@@ -257,74 +259,83 @@ function Preview({ unit, isBlank, logo, academyName, scale = 1 }) {
           </div>
         </div>
         {/* Title */}
-        <h1 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 6px", color: "#111", letterSpacing: -0.5 }}>{unit.title}</h1>
+        <h1 style={{ fontSize: 26, fontWeight: 900, margin: "0 0 14px", color: "#111", letterSpacing: -0.5 }}>{unit.title}</h1>
         {/* Table */}
         <div style={{ border: "2px solid #16a34a", borderRadius: 4, overflow: "hidden" }}>
-          {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", height: 28 }}>
-            <div style={{ padding: "0 12px", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12, color: "#16a34a", letterSpacing: 2, borderBottom: "2px solid #16a34a", background: "#f8fdf9" }}>{hL}</div>
-            <div style={{ padding: "0 12px", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12, color: "#16a34a", letterSpacing: 2, borderBottom: "2px solid #16a34a", borderLeft: "1px solid #16a34a", background: "#f8fdf9" }}>{hR}</div>
-          </div>
           {/* Content rows — fixed height, no expansion */}
           {unit.rows.map((row, i) => {
+            const isHdrL = row.l.hdr;
+            const isHdrR = row.r.hdr;
+            const isHdrRow = isHdrL || isHdrR;
             const showL = !isBlank || !row.l.ans;
             const showR = !isBlank || !row.r.ans;
             const tc = tagColor(row.l.tag);
-            const emptyL = !row.l.tag && !row.l.text;
-            const emptyR = !row.r.num && !row.r.ptag && !row.r.text;
+            const emptyL = !row.l.tag && !row.l.text && !isHdrL;
+            const emptyR = !row.r.num && !row.r.ptag && !row.r.text && !isHdrR;
+            const HDR_STYLE = { padding: "0 12px", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12, color: "#16a34a", letterSpacing: 2, background: "#e8f5e9", height: ROW_H, maxHeight: ROW_H, overflow: "hidden" };
+            // border: thick green only between hdr and non-hdr rows
+            const nextRow = unit.rows[i + 1];
+            const nextIsHdr = nextRow && (nextRow.l.hdr || nextRow.r.hdr);
+            const hdrBoundary = (isHdrRow && !nextIsHdr) || (!isHdrRow && nextIsHdr);
+            const btmBorder = i >= unit.rows.length - 1 ? "none" : hdrBoundary ? "2px solid #16a34a" : "1px solid #e5e7eb";
             return (
               <div key={row.id} style={{
                 display: "grid", gridTemplateColumns: "1fr 1fr",
-                borderBottom: i < unit.rows.length - 1 ? "1px solid #e5e7eb" : "none",
+                borderBottom: btmBorder,
               }}>
                 {/* Left cell */}
-                <div style={{ ...CELL_STYLE, padding: "0 10px", background: emptyL ? "#fafafa" : "#fff" }}>
-                  {row.l.tag && (
-                    <span style={{
-                      display: "inline-block", padding: "1px 7px", borderRadius: 3,
-                      background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px",
-                    }}>{row.l.tag}</span>
-                  )}
-                  {showL && row.l.text && (
-                    <span style={{
-                      ...TEXT_CLIP, fontSize: 12, color: "#1f2937", lineHeight: `${ROW_H}px`,
-                      fontWeight: row.l.bold ? 700 : 400,
-                      textDecoration: row.l.bold ? "underline" : "none",
-                      textUnderlineOffset: 3, textDecorationColor: "#aaa",
-                    }}>{row.l.text}</span>
-                  )}
-                </div>
+                {isHdrL ? (
+                  <div style={HDR_STYLE}>
+                    <span style={{ ...TEXT_CLIP }}>{row.l.text}</span>
+                  </div>
+                ) : (
+                  <div style={{ ...CELL_STYLE, padding: "0 10px", background: emptyL ? "#fafafa" : "#fff" }}>
+                    {row.l.tag && (
+                      <span style={{
+                        display: "inline-block", padding: "1px 7px", borderRadius: 3,
+                        background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px",
+                      }}>{row.l.tag}</span>
+                    )}
+                    {showL && row.l.text && (
+                      <span style={{
+                        ...TEXT_CLIP, fontSize: 12, color: "#1f2937", lineHeight: `${ROW_H}px`,
+                        fontWeight: row.l.bold ? 700 : 400,
+                        textDecoration: row.l.bold ? "underline" : "none",
+                        textUnderlineOffset: 3, textDecorationColor: "#aaa",
+                      }}>{row.l.text}</span>
+                    )}
+                  </div>
+                )}
                 {/* Right cell */}
-                <div style={{ ...CELL_STYLE, padding: "0 10px", borderLeft: "1px solid #d1d5db", background: emptyR ? "#fafafa" : "#fff" }}>
-                  {row.r.num && (
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      width: 18, height: 18, borderRadius: "50%", background: "#16a34a",
-                      color: "#fff", fontSize: 10, fontWeight: 700, flexShrink: 0,
-                    }}>{row.r.num}</span>
-                  )}
-                  {row.r.ptag && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>
-                      {row.r.ptag === "영작" || row.r.ptag === "수동태" ? `[${row.r.ptag}]` : row.r.ptag}
-                    </span>
-                  )}
-                  {showR && row.r.text && (
-                    <span style={{
-                      ...TEXT_CLIP, fontSize: 12, color: "#1f2937", lineHeight: `${ROW_H}px`,
-                      fontWeight: row.r.bold ? 700 : 400,
-                    }}>{row.r.text}</span>
-                  )}
-                </div>
+                {isHdrR ? (
+                  <div style={{ ...HDR_STYLE, borderLeft: "2px solid #16a34a" }}>
+                    <span style={{ ...TEXT_CLIP }}>{row.r.text}</span>
+                  </div>
+                ) : (
+                  <div style={{ ...CELL_STYLE, padding: "0 10px", borderLeft: "2px solid #16a34a", background: emptyR ? "#fafafa" : "#fff" }}>
+                    {row.r.num && (
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: 18, height: 18, borderRadius: "50%", background: "#16a34a",
+                        color: "#fff", fontSize: 10, fontWeight: 700, flexShrink: 0,
+                      }}>{row.r.num}</span>
+                    )}
+                    {row.r.ptag && (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>
+                        {row.r.ptag === "영작" || row.r.ptag === "수동태" ? `[${row.r.ptag}]` : row.r.ptag}
+                      </span>
+                    )}
+                    {showR && row.r.text && (
+                      <span style={{
+                        ...TEXT_CLIP, fontSize: 12, color: "#1f2937", lineHeight: `${ROW_H}px`,
+                        fontWeight: row.r.bold ? 700 : 400,
+                      }}>{row.r.text}</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
-          {/* Trailing empty rows — subtle gray */}
-          {[0, 1, 2].map((i) => (
-            <div key={`e${i}`} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: "1px solid #e5e7eb" }}>
-              <div style={{ ...CELL_STYLE, background: "#fafafa" }} />
-              <div style={{ ...CELL_STYLE, borderLeft: "1px solid #d1d5db", background: "#fafafa" }} />
-            </div>
-          ))}
         </div>
         {/* Footer: logo + academy */}
         {(logo || academyName) && (
@@ -395,7 +406,22 @@ export default function App() {
     (async () => {
       try {
         const r = await window.storage.get("bt-v3");
-        if (r?.value) { const p = JSON.parse(r.value); if (p.units) { setData(p); setCurId(p.units[0]?.id || null); } }
+        if (r?.value) {
+          const p = JSON.parse(r.value);
+          if (p.units) {
+            // migrate: headerL/headerR → first hdr row, pad to 28 rows
+            p.units = p.units.map((u) => {
+              if (u.headerL || u.headerR) {
+                const hasHdr = u.rows.length > 0 && u.rows[0].l?.hdr;
+                if (!hasHdr) u.rows = [hdrRow(u.headerL || "SUMMARY", u.headerR || "PRACTICE"), ...u.rows];
+                delete u.headerL; delete u.headerR;
+              }
+              u.rows = padRows(u.rows);
+              return u;
+            });
+            setData(p); setCurId(p.units[0]?.id || null);
+          }
+        }
       } catch {} setLoaded(true);
     })();
   }, []);
@@ -409,7 +435,7 @@ export default function App() {
   const setSettings = (s) => setData((d) => ({ ...d, settings: { ...d.settings, ...s } }));
   const updateUnit = (id, upd) => setUnits((us) => us.map((u) => (u.id === id ? (typeof upd === "function" ? upd(u) : { ...u, ...upd }) : u)));
 
-  const addUnit = (gid) => { const u = { id: uid(), groupId: gid, title: "새 단원", headerL: "SUMMARY", headerR: "PRACTICE", rows: Array.from({ length: 5 }, emptyRow) }; setUnits((us) => [...us, u]); setCurId(u.id); };
+  const addUnit = (gid) => { const u = { id: uid(), groupId: gid, title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) }; setUnits((us) => [...us, u]); setCurId(u.id); };
   const delUnit = (id) => { if (!confirm("삭제할까요?")) return; setUnits((us) => { const n = us.filter((u) => u.id !== id); if (curId === id) setCurId(n[0]?.id || null); return n; }); };
   const dupUnit = (id) => {
     const s = data.units.find((u) => u.id === id); if (!s) return;
@@ -447,7 +473,14 @@ export default function App() {
     <div style={{ display: "flex", height: "100vh", fontFamily: "'Malgun Gothic','Noto Sans KR',sans-serif", fontSize: 13, background: "#f0f2f5" }}>
       <style>{`
         @page{size:A4;margin:10mm 12mm}
-        @media print{body *{visibility:hidden!important}#print-area,#print-area *{visibility:visible!important}#print-area{position:absolute;left:0;top:0;width:100%!important;transform:none!important;padding:0!important;margin:0!important}.no-print{display:none!important}}
+        @media print{
+          html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important}
+          body *{visibility:hidden!important}
+          #print-wrapper,#print-wrapper *{visibility:visible!important}
+          #print-wrapper{position:fixed!important;left:0!important;top:0!important;width:100%!important;height:auto!important;transform:none!important;padding:0!important;margin:0!important;overflow:visible!important}
+          #print-area{width:100%!important;max-width:100%!important;height:auto!important;padding:0!important;margin:0!important;transform:none!important;box-shadow:none!important;border-radius:0!important;box-sizing:border-box!important}
+          .no-print{display:none!important}
+        }
         input:focus,select:focus{border-color:#86efac!important}
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
       `}</style>
@@ -538,15 +571,9 @@ export default function App() {
           <div className="no-print" style={{ overflowY: "auto", padding: "8px 10px", background: "#fafafa", borderRight: "1px solid #e5e7eb" }}>
             {unit ? (
               <>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 26px", gap: 1, marginBottom: 4, padding: "0 2px" }}>
-                  <input value={unit.headerL || "SUMMARY"} onChange={(e) => updateUnit(curId, { headerL: e.target.value })} style={{ fontSize: 10, fontWeight: 700, color: "#16a34a", letterSpacing: 1, border: "none", background: "transparent", outline: "none", padding: "2px 0", borderBottom: "1px dashed transparent", width: "100%" }} onFocus={(e) => { e.target.style.borderBottomColor = "#86efac"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
-                  <input value={unit.headerR || "PRACTICE"} onChange={(e) => updateUnit(curId, { headerR: e.target.value })} style={{ fontSize: 10, fontWeight: 700, color: "#16a34a", letterSpacing: 1, border: "none", background: "transparent", outline: "none", padding: "2px 0", borderBottom: "1px dashed transparent", width: "100%" }} onFocus={(e) => { e.target.style.borderBottomColor = "#86efac"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
-                  <div />
-                </div>
                 {unit.rows.map((row, i) => (
-                  <EditorRow key={row.id} row={row} onChange={(r) => updateRow(row.id, r)} onDelete={() => delRow(row.id)} onMoveLUp={() => moveCellContent(row.id, 'l', -1)} onMoveLDown={() => moveCellContent(row.id, 'l', 1)} onMoveRUp={() => moveCellContent(row.id, 'r', -1)} onMoveRDown={() => moveCellContent(row.id, 'r', 1)} first={i === 0} last={i === unit.rows.length - 1} />
+                  <EditorRow key={row.id} row={row} onChange={(r) => updateRow(row.id, r)} onMoveLUp={() => moveCellContent(row.id, 'l', -1)} onMoveLDown={() => moveCellContent(row.id, 'l', 1)} onMoveRUp={() => moveCellContent(row.id, 'r', -1)} onMoveRDown={() => moveCellContent(row.id, 'r', 1)} first={i === 0} last={i === unit.rows.length - 1} />
                 ))}
-                <button onClick={() => addRowAfter(unit.rows.length - 1)} style={{ width: "100%", padding: 6, border: "1px dashed #86efac", borderRadius: 5, background: "#f0fdf4", fontSize: 11, color: "#16a34a", fontWeight: 600, cursor: "pointer", marginTop: 3 }}>+ 행 추가</button>
               </>
             ) : (
               <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
