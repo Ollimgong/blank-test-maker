@@ -225,6 +225,7 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
     }}>
       <span style={{ fontSize: 8, color: "#bbb", fontWeight: 600, width: 14, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
       <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
+      {indLv > 0 && <span style={{ width: indLv * 20, flexShrink: 0 }} />}
       <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
         onKeyDown={(e) => {
           if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
