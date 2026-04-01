@@ -372,7 +372,7 @@ function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor }) {
 }
 
 /* ═══════ UnitItem ═══════ */
-function UnitItem({ u, active, onSelect, onDup, onDel, groups, onMove }) {
+function UnitItem({ u, active, onSelect, onDup, onDel, onExport, groups, onMove }) {
   const [menu, setMenu] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -395,6 +395,7 @@ function UnitItem({ u, active, onSelect, onDup, onDel, groups, onMove }) {
         {menu && (
           <div style={{ position: "absolute", right: 0, top: "100%", background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 30, minWidth: 120 }}>
             <MItem onClick={() => { onDup(); setMenu(false); }}>📋 복제</MItem>
+            <MItem onClick={() => { onExport(); setMenu(false); }}>📤 내보내기</MItem>
             <MItem onClick={() => { onDel(); setMenu(false); }}>🗑 삭제</MItem>
             <div style={{ height: 1, background: "#eee", margin: "3px 0" }} />
             <div style={{ padding: "3px 8px", fontSize: 9.5, color: "#aaa", fontWeight: 600 }}>그룹 이동</div>
@@ -529,6 +530,15 @@ export default function App() {
   const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
   const exportJSON = () => { const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "백지테스트_데이터.json"; a.click(); URL.revokeObjectURL(u); };
   const importJSON = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d.units) { setData(d); setCurId(d.units[0]?.id || null); } } catch { alert("잘못된 파일"); } }; r.readAsText(f); }; i.click(); };
+  const exportUnit = (id) => {
+    const u = data.units.find((x) => x.id === id); if (!u) return;
+    const usedTags = new Set();
+    u.rows.forEach((r) => { if (r.l.tag && !NUM_TAG_SET.has(r.l.tag)) usedTags.add(r.l.tag); if (r.r.tag && !NUM_TAG_SET.has(r.r.tag)) usedTags.add(r.r.tag); });
+    const tags = (data.settings.tags || DEFAULT_TAGS).filter((t) => usedTags.has(t.v));
+    const d = { _type: "bt-units", units: [JSON.parse(JSON.stringify(u))], tags };
+    const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = `${u.title}.json`; a.click(); URL.revokeObjectURL(url);
+  };
+  const importUnits = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.multiple = true; i.onchange = (e) => { Array.from(e.target.files).forEach((f) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d._type === "bt-units" && d.units) { const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); }); nu.groupId = null; return nu; }); if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); } setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId); } else { alert("단원 파일이 아닙니다. 단원 내보내기로 만든 파일만 가져올 수 있습니다."); } } catch { alert("잘못된 파일: " + f.name); } }; r.readAsText(f); }); }; i.click(); };
   const resetAll = () => { if (confirm("초기화할까요?")) { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); } };
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "sans-serif", color: "#999" }}>불러오는 중...</div>;
@@ -596,7 +606,7 @@ export default function App() {
                   <button onClick={(e) => { e.stopPropagation(); setEditGroupId(g.id); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#bbb", padding: 0 }}>✎</button>
                   <button onClick={(e) => { e.stopPropagation(); if (confirm(`"${g.name}" 삭제?`)) delGroup(g.id); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#ddd", padding: 0 }}>✕</button>
                 </div>
-                {!g.collapsed && gu.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
+                {!g.collapsed && gu.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} onExport={() => exportUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
                 {!g.collapsed && <button onClick={() => addUnit(g.id)} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 10, color: "#bbb", cursor: "pointer", marginTop: 1, marginBottom: 3 }}>+ 단원</button>}
               </div>
             );
@@ -604,14 +614,15 @@ export default function App() {
           {ungrouped.length > 0 && (
             <div style={{ marginTop: 4 }}>
               <div style={{ padding: "3px 5px", fontSize: 10, color: "#aaa", fontWeight: 600 }}>미분류</div>
-              {ungrouped.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
+              {ungrouped.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} onExport={() => exportUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
             </div>
           )}
         </div>
         <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 3, flexWrap: "wrap" }}>
           <button onClick={() => setSettingsOpen(true)} style={{ ...BS, flex: 1 }}>⚙ 설정</button>
-          <button onClick={exportJSON} title="내보내기" style={BS}>↓</button>
-          <button onClick={importJSON} title="불러오기" style={BS}>↑</button>
+          <button onClick={importUnits} title="단원 가져오기" style={BS}>📥</button>
+          <button onClick={exportJSON} title="전체 내보내기" style={BS}>↓</button>
+          <button onClick={importJSON} title="전체 불러오기" style={BS}>↑</button>
           <button onClick={resetAll} title="초기화" style={{ ...BS, color: "#ef4444" }}>↺</button>
         </div>
       </div>
