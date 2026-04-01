@@ -27,8 +27,8 @@ const tagColor = (v, tags, numColor) => {
 };
 const emptyRow = () => ({
   id: uid(),
-  l: { tag: "", mark: "", text: "", ans: false, bold: false, hdr: false, indent: 0 },
-  r: { tag: "", mark: "", text: "", ans: false, bold: false, hdr: false, indent: 0 },
+  l: { tag: "", mark: "", text: "", vis: false, bold: false, hdr: false, indent: 0 },
+  r: { tag: "", mark: "", text: "", vis: false, bold: false, hdr: false, indent: 0 },
 });
 
 /* ═══════ row helpers ═══════ */
@@ -41,14 +41,14 @@ const padRows = (rows) => {
 /* ═══════ default data ═══════ */
 const mk = (ld, rd) => ({
   id: uid(),
-  l: { tag: ld.t || "", mark: ld.m || "", text: ld.x || "", ans: !!ld.a, bold: !!ld.b, indent: ld.i || 0 },
-  r: { tag: rd.t || "", mark: rd.m || "", text: rd.x || "", ans: !!rd.a, bold: !!rd.b, indent: rd.i || 0 },
+  l: { tag: ld.t || "", mark: ld.m || "", text: ld.x || "", vis: !ld.a, bold: !!ld.b, indent: ld.i || 0 },
+  r: { tag: rd.t || "", mark: rd.m || "", text: rd.x || "", vis: !rd.a, bold: !!rd.b, indent: rd.i || 0 },
 });
 
 const hdrRow = (lText, rText) => ({
   id: uid(),
-  l: { tag: "", mark: "", text: lText, ans: false, bold: false, hdr: true, indent: 0 },
-  r: { tag: "", mark: "", text: rText, ans: false, bold: false, hdr: true, indent: 0 },
+  l: { tag: "", mark: "", text: lText, vis: true, bold: false, hdr: true, indent: 0 },
+  r: { tag: "", mark: "", text: rText, vis: true, bold: false, hdr: true, indent: 0 },
 });
 
 const PASSIVE_ROWS = [
@@ -118,12 +118,14 @@ const DEFAULT_STATE = {
   settings: { logo: null, slogan: "", tags: DEFAULT_TAGS },
 };
 
-/* ═══════ TagPicker ═══════ */
-function TagPicker({ value, onChange, tags, numColor }) {
+/* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
+function CellProps({ cell, upd, tags, numColor }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const nc = numColor || DEFAULT_NUM_COLOR;
-  const cur = tagColor(value, tags, nc);
+  const tc = tagColor(cell.tag, tags, nc);
+  const indLv = cell.indent || 0;
+  const hasAny = cell.tag || cell.mark || indLv > 0;
   useEffect(() => {
     if (!open) return;
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -131,35 +133,59 @@ function TagPicker({ value, onChange, tags, numColor }) {
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
   const mkBtn = (v, c, tx, label) => (
-    <button key={v} onClick={() => { onChange(v); setOpen(false); }} style={{
+    <button key={v} onClick={() => upd("tag", v)} style={{
       padding: "3px 8px", borderRadius: 4, border: "none",
       background: v ? c : "#f3f4f6", color: v ? tx : "#6b7280",
       fontSize: 11, fontWeight: 600, cursor: "pointer",
-      outline: value === v ? "2px solid #111" : "none", outlineOffset: 1,
+      outline: cell.tag === v ? "2px solid #111" : "none", outlineOffset: 1,
     }}>{label}</button>
   );
   return (
-    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+    <div ref={ref} style={{ position: "relative", flexShrink: 0, display: "flex", alignItems: "center", gap: 2 }}>
+      {/* 팝오버 토글 */}
       <button onClick={() => setOpen(!open)} style={{
-        display: "inline-flex", alignItems: "center", gap: 3,
-        padding: value ? "2px 8px" : "2px 6px", borderRadius: 4,
-        border: value ? "none" : "1px dashed #ccc",
-        background: value ? cur.c : "#f9fafb", color: value ? cur.tx : "#aaa",
-        fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", minWidth: 38, justifyContent: "center",
-      }}>{value || "태그"}<span style={{ fontSize: 7, opacity: 0.6 }}>▼</span></button>
+        width: 18, height: 18, border: "none", borderRadius: 3, cursor: "pointer",
+        fontSize: 8, fontWeight: 600, flexShrink: 0, padding: 0, lineHeight: 1,
+        background: open ? "#f0f0f0" : "transparent", color: "#aaa",
+      }}>{open ? "▲" : "▼"}</button>
+      {/* 들여쓰기 표시 */}
+      {indLv > 0 && <span style={{ color: "#bbb", fontSize: 8, fontWeight: 600, flexShrink: 0, userSelect: "none" }}>┗{indLv}</span>}
+      {/* 태그+마커 뱃지 */}
+      {cell.tag && (
+        <span onClick={() => setOpen(!open)} style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.tag}</span>
+      )}
+      {cell.mark && (
+        <span onClick={() => setOpen(!open)} style={{ padding: "1px 5px", borderRadius: 3, background: "#dbeafe", color: "#1d4ed8", fontSize: 9.5, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.mark}</span>
+      )}
       {open && (
         <div style={{
           position: "absolute", top: "110%", left: 0, zIndex: 50,
           background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.18)",
-          padding: 6, width: 220, marginTop: 2,
-        }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 4 }}>
-            {mkBtn("", "", "", "태그 없음")}
+          padding: 8, width: 240, marginTop: 2,
+        }} onClick={(e) => e.stopPropagation()}>
+          {/* 태그 */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#999", marginBottom: 4 }}>태그</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 6 }}>
+            {mkBtn("", "", "", "없음")}
             {NUM_TAGS.map((n) => mkBtn(n, nc, "#fff", n))}
           </div>
-          <div style={{ height: 1, background: "#e5e7eb", margin: "3px 0" }} />
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
             {(tags || DEFAULT_TAGS).map((t) => mkBtn(t.v, t.c, t.tx, t.v))}
+          </div>
+          {/* 마커 */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#999", marginBottom: 3 }}>마커</div>
+          <input value={cell.mark} onChange={(e) => upd("mark", e.target.value)} placeholder="예: [영작], (1)"
+            style={{ width: "100%", padding: "4px 6px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 11, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
+          {/* 들여쓰기 */}
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#999", marginBottom: 3 }}>들여쓰기</div>
+          <div style={{ display: "flex", gap: 3 }}>
+            {[0, 1, 2].map((lv) => (
+              <button key={lv} onClick={() => upd("indent", lv)} style={{
+                padding: "3px 10px", borderRadius: 4, border: "none", cursor: "pointer",
+                fontSize: 11, fontWeight: 600,
+                background: indLv === lv ? "#6366f1" : "#f3f4f6", color: indLv === lv ? "#fff" : "#888",
+              }}>{lv === 0 ? "없음" : `${lv}단계`}</button>
+            ))}
           </div>
         </div>
       )}
@@ -178,58 +204,36 @@ function CellArrows({ onUp, onDown, first, last }) {
   );
 }
 
-function CellMenu({ cell, upd }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
-  }, [open]);
+function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx }) {
   const indLv = cell.indent || 0;
-  const hasActive = cell.hdr || cell.bold || cell.ans || indLv > 0;
-  return (
-    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
-      <button onClick={() => setOpen(!open)} style={{
-        width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
-        fontSize: 10, fontWeight: 800, padding: 0, lineHeight: 1,
-        background: hasActive ? "#e0e7ff" : "#f0f0f0", color: hasActive ? "#4338ca" : "#bbb",
-      }}>⋯</button>
-      {open && (
-        <div style={{
-          position: "absolute", right: 0, top: "110%", zIndex: 50,
-          background: "#fff", borderRadius: 6, boxShadow: "0 6px 20px rgba(0,0,0,.15)",
-          padding: 4, display: "flex", gap: 3, alignItems: "center",
-        }}>
-          <MiniBtn active={cell.hdr} onClick={() => upd("hdr", !cell.hdr)} title="헤더" color="#16a34a" textColor="#fff">H</MiniBtn>
-          <MiniBtn active={cell.bold} onClick={() => upd("bold", !cell.bold)} title="굵게">B</MiniBtn>
-          <MiniBtn active={cell.ans} onClick={() => upd("ans", !cell.ans)} title="답안" color="#fbbf24" textColor="#78350f">답</MiniBtn>
-          <button onClick={() => upd("indent", (indLv + 1) % 3)} title={`들여쓰기 ${indLv}/2`} style={{
-            width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
-            fontSize: 8, fontWeight: 800, flexShrink: 0, padding: 0, lineHeight: 1,
-            background: indLv > 0 ? "#6366f1" : "#f0f0f0", color: indLv > 0 ? "#fff" : "#bbb",
-          }}>{indLv > 0 ? `┗${indLv}` : "┗"}</button>
-        </div>
-      )}
-    </div>
+  const indPad = indLv * 20;
+  const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
+  const TB = (active, onClick, title, children, color, textColor) => (
+    <button onClick={onClick} title={title} style={{
+      width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
+      fontSize: 9.5, fontWeight: 800, flexShrink: 0, padding: 0, lineHeight: 1,
+      background: active ? (color || "#1f2937") : "#f0f0f0",
+      color: active ? (textColor || "#fff") : "#bbb",
+    }}>{children}</button>
   );
-}
-
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor }) {
-  const tc = tagColor(cell.tag, tags, numColor);
   return (
     <div style={{
-      background: cell.hdr ? "#e8f5e9" : cell.tag ? `${tc.c}0a` : "#fff", padding: "3px 4px",
+      background: cell.hdr ? "#e8f5e9" : isEmpty ? "#f3f4f6" : "#fff", padding: "3px 4px",
       display: "flex", alignItems: "center", gap: 3,
-      borderLeft: cell.hdr ? "3px solid #16a34a" : cell.tag ? `3px solid ${tc.c}` : "3px solid transparent",
+      borderLeft: cell.hdr ? "3px solid #16a34a" : "3px solid transparent",
+      opacity: isEmpty ? 0.5 : 1,
     }}>
-      <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
-      <TagPicker value={cell.tag} onChange={(v) => upd("tag", v)} tags={tags} numColor={numColor} />
-      <input value={cell.mark} onChange={(e) => upd("mark", e.target.value)} placeholder="마커"
-        style={{ width: 42, padding: "2px 4px", border: cell.mark ? "1px solid #c7d2fe" : "1px dashed #ddd", borderRadius: 3, fontSize: 10, fontWeight: 600, outline: "none", background: cell.mark ? "#eef2ff" : "#f9fafb", color: cell.mark ? "#4338ca" : "#aaa", textAlign: "center" }} />
+      <span style={{ fontSize: 8, color: "#bbb", fontWeight: 600, width: 14, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
+      <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
       <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
-        style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400 }} />
-      <CellMenu cell={cell} upd={upd} />
+        onKeyDown={(e) => {
+          if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
+        }}
+        style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: isEmpty ? "#eee" : "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+      {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#16a34a", "#fff")}
+      {TB(cell.bold, () => upd("bold", !cell.bold), "굵게", "B")}
+      {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (기본: 숨김)", "표시", "#f59e0b", "#78350f")}
+      <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
     </div>
   );
 }
@@ -243,21 +247,10 @@ function EditorSideGroup({ side, label, color, rows, onCellChange, onMove, tags,
       </div>
       {rows.map((row, i) => (
         <div key={row.id} style={{ borderRadius: 4, marginBottom: 1, background: "#e0e0e0" }}>
-          <EditorCell side={side} cell={row[side]} upd={(f, v) => onCellChange(row.id, side, f, v)} onUp={() => onMove(row.id, side, -1)} onDown={() => onMove(row.id, side, 1)} first={i === 0} last={i === rows.length - 1} tags={tags} numColor={numColor} />
+          <EditorCell side={side} cell={row[side]} upd={(f, v) => onCellChange(row.id, side, f, v)} onUp={() => onMove(row.id, side, -1)} onDown={() => onMove(row.id, side, 1)} first={i === 0} last={i === rows.length - 1} tags={tags} numColor={numColor} idx={i} />
         </div>
       ))}
     </div>
-  );
-}
-
-function MiniBtn({ active, onClick, title, children, color, textColor }) {
-  return (
-    <button onClick={onClick} title={title} style={{
-      width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
-      fontSize: 9.5, fontWeight: 800, flexShrink: 0, padding: 0, lineHeight: 1,
-      background: active ? (color || "#1f2937") : "#f0f0f0",
-      color: active ? (textColor || "#fff") : "#bbb",
-    }}>{children}</button>
   );
 }
 
@@ -305,7 +298,7 @@ function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor }) {
             const HDR_STYLE = { padding: "0 12px", display: "flex", alignItems: "center", fontWeight: 800, fontSize: 12, color: "#16a34a", letterSpacing: 2, background: "#e8f5e9", height: ROW_H, maxHeight: ROW_H, overflow: "hidden" };
             const renderCell = (cell, side) => {
               const isHdr = cell.hdr;
-              const show = !isBlank || !cell.ans;
+              const show = !isBlank || cell.vis;
               const tc = tagColor(cell.tag, tags, numColor);
               const empty = !cell.tag && !cell.mark && !cell.text && !isHdr && !cell.indent;
               const nxtHdr = side === "l" ? nextRow?.l.hdr : nextRow?.r.hdr;
@@ -493,6 +486,11 @@ export default function App() {
                     }
                     c.tag = "";
                   }
+                  // ans → vis (invert: ans=true meant hidden, vis=true means visible)
+                  if (c.vis === undefined) {
+                    c.vis = !c.ans;
+                    delete c.ans;
+                  }
                 });
               });
             });
@@ -561,7 +559,7 @@ export default function App() {
     const d = { _type: "bt-units", units: [JSON.parse(JSON.stringify(u))], tags };
     const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = `${u.title}.json`; a.click(); URL.revokeObjectURL(url);
   };
-  const importUnits = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.multiple = true; i.onchange = (e) => { Array.from(e.target.files).forEach((f) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d._type === "bt-units" && d.units) { const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); }); nu.groupId = null; return nu; }); if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); } setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId); } else { alert("단원 파일이 아닙니다. 단원 내보내기로 만든 파일만 가져올 수 있습니다."); } } catch { alert("잘못된 파일: " + f.name); } }; r.readAsText(f); }); }; i.click(); };
+  const importUnits = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.multiple = true; i.onchange = (e) => { Array.from(e.target.files).forEach((f) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d._type === "bt-units" && d.units) { const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; }); if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); } setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId); } else { alert("단원 파일이 아닙니다. 단원 내보내기로 만든 파일만 가져올 수 있습니다."); } } catch { alert("잘못된 파일: " + f.name); } }; r.readAsText(f); }); }; i.click(); };
   const resetAll = () => { if (confirm("초기화할까요?")) { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); } };
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "sans-serif", color: "#999" }}>불러오는 중...</div>;
@@ -580,11 +578,11 @@ export default function App() {
         ${data.settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${data.settings.customFont}');font-display:swap}` : ''}
         @page{size:A4;margin:0}
         @media print{
-          html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important}
-          html,body{margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
+          html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
           body *{visibility:hidden!important}
           #print-wrapper,#print-wrapper *{visibility:visible!important}
           #print-wrapper{position:fixed!important;left:0!important;top:0!important;width:210mm!important;height:297mm!important;display:flex!important;justify-content:center!important;align-items:center!important;transform:none!important;padding:0!important;margin:0!important;overflow:hidden!important}
+          #preview-zoom{transform:none!important}
           #print-area{box-shadow:none!important;border-radius:0!important;margin:0!important}
           .no-print{display:none!important}
         }
@@ -735,7 +733,7 @@ export default function App() {
               <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 36, textAlign: "center" }}>{previewZoom}%</span>
               <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
             </div>
-            <div style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
+            <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
               <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} slogan={data.settings.slogan} fontFamily={fontFamily} tags={data.settings.tags} numColor={data.settings.numTagColor} />
             </div>
           </div>
