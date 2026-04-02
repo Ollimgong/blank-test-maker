@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const fsp = fs.promises;
 const os = require("os");
 
 let mainWindow;
@@ -8,14 +9,14 @@ let workspaceDir = null;
 
 const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
 
-function loadAppSettings() {
+async function loadAppSettings() {
   try {
-    const s = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+    const s = JSON.parse(await fsp.readFile(SETTINGS_PATH, "utf-8"));
     return s;
   } catch { return {}; }
 }
-function saveAppSettings(s) {
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2), "utf-8");
+async function saveAppSettings(s) {
+  await fsp.writeFile(SETTINGS_PATH, JSON.stringify(s, null, 2), "utf-8");
 }
 
 function createWindow() {
@@ -89,13 +90,14 @@ function buildMenu() {
 }
 
 // 폴더 스캔: .btm 파일 목록 + 하위폴더(그룹)
-function scanFolder(dirPath) {
-  if (!dirPath || !fs.existsSync(dirPath)) return { files: [], groups: [] };
+async function scanFolder(dirPath) {
+  if (!dirPath) return { files: [], groups: [] };
+  try { await fsp.access(dirPath); } catch { return { files: [], groups: [] }; }
   const files = [];
   const groups = [];
 
   // 루트 .btm 파일
-  const rootEntries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const rootEntries = await fsp.readdir(dirPath, { withFileTypes: true });
   for (const e of rootEntries) {
     if (e.isFile() && (e.name.endsWith(".btm") || e.name.endsWith(".json"))) {
       files.push({ name: e.name, path: path.join(dirPath, e.name), group: null });
@@ -106,13 +108,13 @@ function scanFolder(dirPath) {
       groups.push({ name: groupName, path: groupPath });
       // 하위폴더 내 .btm 파일
       try {
-        const subEntries = fs.readdirSync(groupPath, { withFileTypes: true });
+        const subEntries = await fsp.readdir(groupPath, { withFileTypes: true });
         for (const se of subEntries) {
           if (se.isFile() && (se.name.endsWith(".btm") || se.name.endsWith(".json"))) {
             files.push({ name: se.name, path: path.join(groupPath, se.name), group: groupName });
           }
         }
-      } catch {}
+      } catch (err) { console.warn("하위폴더 스캔 실패:", groupPath, err.message); }
     }
   }
   return { files, groups };
@@ -125,10 +127,21 @@ async function selectFolder() {
   });
   if (result.canceled || !result.filePaths.length) return;
   workspaceDir = result.filePaths[0];
-  saveAppSettings({ ...loadAppSettings(), lastFolder: workspaceDir });
+  const cur = await loadAppSettings();
+  await saveAppSettings({ ...cur, lastFolder: workspaceDir });
   updateTitle();
-  const scan = scanFolder(workspaceDir);
+  const scan = await scanFolder(workspaceDir);
   mainWindow.webContents.send("folder-opened", { dirPath: workspaceDir, ...scan });
+}
+
+// 경로 검증: 작업폴더 범위 내인지 확인
+function assertInWorkspace(filePath) {
+  if (!workspaceDir) throw new Error("작업 폴더가 설정되지 않았습니다");
+  const resolved = path.resolve(filePath);
+  const wsResolved = path.resolve(workspaceDir);
+  if (!resolved.startsWith(wsResolved + path.sep) && resolved !== wsResolved) {
+    throw new Error("작업 폴더 범위를 벗어난 경로입니다");
+  }
 }
 
 // IPC handlers
@@ -136,81 +149,88 @@ ipcMain.handle("select-folder", async () => {
   await selectFolder();
 });
 
-ipcMain.handle("scan-folder", (event, dirPath) => {
-  return scanFolder(dirPath || workspaceDir);
+ipcMain.handle("scan-folder", async (event, dirPath) => {
+  return await scanFolder(dirPath || workspaceDir);
 });
 
-ipcMain.handle("read-file", (event, filePath) => {
+ipcMain.handle("read-file", async (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
+    assertInWorkspace(filePath);
+    const content = await fsp.readFile(filePath, "utf-8");
     return { success: true, content };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("write-file", (event, { filePath, content }) => {
+ipcMain.handle("write-file", async (event, { filePath, content }) => {
   try {
+    assertInWorkspace(filePath);
     // 디렉토리가 없으면 생성
     const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filePath, content, "utf-8");
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.writeFile(filePath, content, "utf-8");
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("delete-file", (event, filePath) => {
+ipcMain.handle("delete-file", async (event, filePath) => {
   try {
-    fs.unlinkSync(filePath);
+    assertInWorkspace(filePath);
+    await fsp.unlink(filePath);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("rename-file", (event, { oldPath, newPath }) => {
+ipcMain.handle("rename-file", async (event, { oldPath, newPath }) => {
   try {
+    assertInWorkspace(oldPath);
+    assertInWorkspace(newPath);
     const dir = path.dirname(newPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.renameSync(oldPath, newPath);
+    await fsp.mkdir(dir, { recursive: true });
+    await fsp.rename(oldPath, newPath);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("create-group-folder", (event, folderPath) => {
+ipcMain.handle("create-group-folder", async (event, folderPath) => {
   try {
-    if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+    assertInWorkspace(folderPath);
+    await fsp.mkdir(folderPath, { recursive: true });
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("delete-group-folder", (event, folderPath) => {
+ipcMain.handle("delete-group-folder", async (event, folderPath) => {
   try {
+    assertInWorkspace(folderPath);
     // 폴더 내 파일이 있으면 루트로 이동
-    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    const entries = await fsp.readdir(folderPath, { withFileTypes: true });
     const parentDir = path.dirname(folderPath);
     for (const e of entries) {
       if (e.isFile()) {
-        fs.renameSync(path.join(folderPath, e.name), path.join(parentDir, e.name));
+        await fsp.rename(path.join(folderPath, e.name), path.join(parentDir, e.name));
       }
     }
-    fs.rmdirSync(folderPath);
+    await fsp.rmdir(folderPath);
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("get-app-settings", () => loadAppSettings());
-ipcMain.handle("save-app-settings", (_, partial) => {
-  const cur = loadAppSettings();
-  saveAppSettings({ ...cur, ...partial });
+ipcMain.handle("get-app-settings", async () => await loadAppSettings());
+ipcMain.handle("save-app-settings", async (_, partial) => {
+  const cur = await loadAppSettings();
+  await saveAppSettings({ ...cur, ...partial });
 });
 
 ipcMain.handle("get-workspace", () => workspaceDir);
@@ -218,7 +238,7 @@ ipcMain.handle("get-workspace", () => workspaceDir);
 ipcMain.handle("print-preview", async (event, { html }) => {
   // HTML을 임시 파일로 저장 후 로드
   const tmpHtml = path.join(os.tmpdir(), `bt-print-${Date.now()}.html`);
-  fs.writeFileSync(tmpHtml, html, "utf-8");
+  await fsp.writeFile(tmpHtml, html, "utf-8");
   const printWin = new BrowserWindow({
     show: false,
     width: 800,
@@ -234,9 +254,9 @@ ipcMain.handle("print-preview", async (event, { html }) => {
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });
   printWin.destroy();
-  try { fs.unlinkSync(tmpHtml); } catch {}
+  try { await fsp.unlink(tmpHtml); } catch (err) { console.warn("임시 HTML 삭제 실패:", err.message); }
   const tmpPath = path.join(os.tmpdir(), `bt-preview-${Date.now()}.pdf`);
-  fs.writeFileSync(tmpPath, pdfData);
+  await fsp.writeFile(tmpPath, pdfData);
   const previewWin = new BrowserWindow({
     parent: mainWindow,
     width: 900,
@@ -247,23 +267,30 @@ ipcMain.handle("print-preview", async (event, { html }) => {
   previewWin.setMenuBarVisibility(false);
   previewWin.loadFile(tmpPath);
   previewWin.on("closed", () => {
-    try { fs.unlinkSync(tmpPath); } catch {}
+    fsp.unlink(tmpPath).catch((err) => console.warn("임시 PDF 삭제 실패:", err.message));
   });
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
 
   // 마지막 작업 폴더 복원
-  const settings = loadAppSettings();
-  if (settings.lastFolder && fs.existsSync(settings.lastFolder)) {
-    workspaceDir = settings.lastFolder;
-    updateTitle();
-    mainWindow.webContents.on("did-finish-load", () => {
-      const scan = scanFolder(workspaceDir);
-      mainWindow.webContents.send("folder-opened", { dirPath: workspaceDir, ...scan });
-    });
+  const settings = await loadAppSettings();
+  if (settings.lastFolder) {
+    try {
+      await fsp.access(settings.lastFolder);
+      workspaceDir = settings.lastFolder;
+      updateTitle();
+    } catch (err) { console.warn("마지막 폴더 복원 실패:", err.message); }
   }
+
+  // 새로고침 시에도 현재 작업폴더 전달
+  mainWindow.webContents.on("did-finish-load", async () => {
+    if (workspaceDir) {
+      const scan = await scanFolder(workspaceDir);
+      mainWindow.webContents.send("folder-opened", { dirPath: workspaceDir, ...scan });
+    }
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

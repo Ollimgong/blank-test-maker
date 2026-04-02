@@ -11,8 +11,8 @@
 - `docs/DESIGN_DECISIONS.md` — 설계 결정사항과 대화 히스토리
 
 ## 실행 환경
-- **Electron 데스크톱 앱**: `npm run electron:dev` (빌드 후 실행)
-- **로컬 웹 개발**: `npm run dev` → http://localhost:5173 (Vite)
+- **개발**: `npm run dev` (Vite HMR + Electron). React 코드 수정 시 자동 반영됨. 기본 개발 명령어.
+- **빌드 후 실행**: `npm run electron:dev` (Vite 빌드 → Electron). HMR 없이 프로덕션 빌드 확인용.
 - **배포 빌드**: `npm run dist:win` (Windows .exe) / `npm run dist:mac` (macOS .dmg)
 - React 기본 훅만 사용 (useState, useEffect, useRef)
 - 외부 라이브러리 없음 (Vite/React/Electron은 dev 의존성)

@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron . --dev\"",
     "electron:dev": "vite build && electron .",
     "build": "vite build",
     "dist": "vite build && electron-builder",
@@ -17,9 +17,11 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
     "electron": "^41.1.1",
     "electron-builder": "^26.8.1",
-    "vite": "^8.0.3"
+    "vite": "^8.0.3",
+    "wait-on": "^9.0.4"
   },
   "build": {
     "appId": "com.blanktest.maker",
