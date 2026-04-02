@@ -106,7 +106,7 @@ const RELATIVE_ROWS = [
   mk({ t: "예문", x: "This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
 ];
 
-const DEFAULT_SETTINGS = { slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS };
+const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
 const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
 /* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
@@ -265,7 +265,7 @@ const CELL_STYLE = {
 };
 const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" };
 
-function Preview({ unit, isBlank, slogan, fontFamily, tags, numColor, printId }) {
+function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
   if (!unit) return <div style={{ padding: 40, color: "#bbb", textAlign: "center", fontSize: 13 }}>단원을 선택하세요</div>;
   return (
     <div id={printId || "print-wrapper"}>
@@ -417,7 +417,7 @@ function MItem({ onClick, children }) {
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
-function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, slogan, tags, numColor }) {
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, numColor }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(600);
   useEffect(() => {
@@ -464,7 +464,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily,
       {/* 썸네일 */}
       <div onClick={() => togglePrintCheck(p.key)} style={{ position: "relative", cursor: "pointer", width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
         <div id={`thumb-${p.key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
-          <Preview unit={p.unit} isBlank={p.mode === "blank"} slogan={slogan} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${p.key}`} />
+          <Preview unit={p.unit} isBlank={p.mode === "blank"} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${p.key}`} />
         </div>
       </div>
     </div>
@@ -546,7 +546,7 @@ export default function App() {
       us.tags = us.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
       // 전역 설정이 기본값이면 파일의 설정으로 덮어씀
       setSettingsState((prev) => {
-        const isDefault = prev.slogan === DEFAULT_SETTINGS.slogan;
+        const isDefault = JSON.stringify(prev.tags) === JSON.stringify(DEFAULT_TAGS) && !prev.numTagColor;
         return isDefault ? { ...prev, ...us } : prev;
       });
       delete p.settings;
@@ -658,7 +658,8 @@ export default function App() {
     setPrintChecked(new Set());
   };
 
-  const switchToTab = (tab) => {
+  const switchToTab = async (tab) => {
+    if (dirty && currentFile && unit) await saveFile();
     setRightTab(tab);
     if (tab === "print") loadAllUnits();
   };
@@ -812,7 +813,7 @@ export default function App() {
   if (!workspace) return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Pretendard',sans-serif", background: "#f0f2f5" }}>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
+        <img src={logoImg} style={{ height: 64, objectFit: "contain", marginBottom: 16 }} alt="잉그립" />
         <div style={{ fontSize: 18, fontWeight: 800, color: "#00391e", marginBottom: 4 }}>백지테스트 메이커</div>
         <div style={{ fontSize: 12, color: "#999", marginBottom: 20 }}>작업 폴더를 선택해서 시작하세요</div>
         <button onClick={() => window.electronAPI?.selectFolder()} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "#ec6619", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
@@ -884,7 +885,7 @@ export default function App() {
         <span style={{ fontSize: 10.5, fontWeight: 600, color: "#7e7e7f" }}>메이커</span>
         <div style={{ width: 1, height: 18, background: "#e5e7eb", margin: "0 4px" }} />
         <div style={{ display: "flex", gap: 2, background: "#f3f4f6", borderRadius: 6, padding: 2 }}>
-          <button onClick={() => setRightTab("edit")} style={{ padding: "5px 20px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: rightTab === "edit" ? "#fff" : "transparent", color: rightTab === "edit" ? "#00391e" : "#aaa", boxShadow: rightTab === "edit" ? "0 1px 2px rgba(0,0,0,.06)" : "none" }}>편집</button>
+          <button onClick={() => switchToTab("edit")} style={{ padding: "5px 20px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: rightTab === "edit" ? "#fff" : "transparent", color: rightTab === "edit" ? "#00391e" : "#aaa", boxShadow: rightTab === "edit" ? "0 1px 2px rgba(0,0,0,.06)" : "none" }}>편집</button>
           <button onClick={() => switchToTab("print")} style={{ padding: "5px 20px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: rightTab === "print" ? "#fff" : "transparent", color: rightTab === "print" ? "#ec6619" : "#aaa", boxShadow: rightTab === "print" ? "0 1px 2px rgba(0,0,0,.06)" : "none" }}>인쇄</button>
         </div>
         <div style={{ flex: 1 }} />
@@ -940,8 +941,6 @@ export default function App() {
                 </div>
               )}
             </div>
-            <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb" }}>
-            </div>
             </>}
           </div>
 
@@ -994,7 +993,7 @@ export default function App() {
               </div>
               <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
                 <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
-                  <Preview unit={unit} isBlank={previewMode === "blank"} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
+                  <Preview unit={unit} isBlank={previewMode === "blank"} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
                 </div>
               </div>
             </div>
@@ -1069,7 +1068,7 @@ export default function App() {
               </button>
             </div>
             <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
-              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} slogan={settings.slogan} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
             </div>
           </div>
         </div>
@@ -1080,11 +1079,6 @@ export default function App() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setSettingsOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, padding: 20, width: 420, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
             <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700 }}>설정</h3>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>슬로건</label>
-              <input value={settings.slogan || ""} onChange={(e) => setSettings({ slogan: e.target.value })} placeholder="예: 손에 잡히는 영어" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
-            </div>
-
             {/* ── 숫자 태그 색상 ── */}
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 5 }}>숫자 태그 색상</label>
