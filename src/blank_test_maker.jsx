@@ -381,88 +381,80 @@ function MItem({ onClick, children }) {
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
-function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, numColor, zoom = 100 }) {
-  const containerRef = useRef(null);
-  const [containerW, setContainerW] = useState(600);
-  useEffect(() => {
-    if (!containerRef.current) return;
-    let rafId = null;
-    const obs = new ResizeObserver((entries) => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        for (const e of entries) setContainerW(e.contentRect.width);
-      });
-    });
-    obs.observe(containerRef.current);
-    return () => { obs.disconnect(); if (rafId) cancelAnimationFrame(rafId); };
-  }, []);
-
-  // 체크된 파일만 수집 (파일 단위로 묶기)
-  const checkedFiles = allUnits.filter((u) =>
-    printChecked.has(`${u.filePath}::answer`) || printChecked.has(`${u.filePath}::blank`)
-  );
-
-  // 그룹별로 분류
-  const grouped = {};
-  const ungrouped = [];
-  checkedFiles.forEach((u) => {
-    if (u.group) { if (!grouped[u.group]) grouped[u.group] = []; grouped[u.group].push(u); }
-    else ungrouped.push(u);
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, numColor, thumbW }) {
+  // 단원별로 페이지 묶기 (체크 여부 무관하게 수집, 체크된 것만 렌더)
+  const unitGroups = [];
+  let pageNum = 0;
+  allUnits.forEach((u) => {
+    const aKey = `${u.filePath}::answer`;
+    const bKey = `${u.filePath}::blank`;
+    const hasA = printChecked.has(aKey);
+    const hasB = printChecked.has(bKey);
+    if (!hasA && !hasB) return;
+    const modes = [];
+    if (hasA) { modes.push({ mode: "answer", key: aKey, num: ++pageNum }); }
+    if (hasB) { modes.push({ mode: "blank", key: bKey, num: ++pageNum }); }
+    unitGroups.push({ u, modes });
   });
 
-  const gap = 10;
-  const thumbW = Math.min((containerW - gap * 3) / 2, 370) * zoom / 100;
+  if (unitGroups.length === 0) return <div style={{ color: "#999", fontSize: 12, padding: 40, textAlign: "center" }}>왼쪽에서 인쇄할 페이지를 선택하세요</div>;
+
   const scale = thumbW / 740;
   const thumbH = 1046 * scale;
+  const totalPages = pageNum;
 
-  const renderThumb = (u, mode) => {
-    const key = `${u.filePath}::${mode}`;
-    const checked = printChecked.has(key);
-    return (
-      <div style={{ width: thumbW }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: mode === "answer" ? "#00391e" : "#ec6619", textTransform: "uppercase", padding: "0 2px 4px" }}>
-          {mode === "answer" ? "ANSWER" : "WORKSHEET"}
-        </div>
-        {checked ? (
-          <div style={{ width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
-            <div id={`thumb-${key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
-              <Preview unit={u.unit} isBlank={mode === "blank"} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${key}`} />
+  // 그룹별 분류
+  const grouped = {};
+  const ungrouped = [];
+  unitGroups.forEach((item) => {
+    if (item.u.group) { if (!grouped[item.u.group]) grouped[item.u.group] = []; grouped[item.u.group].push(item); }
+    else ungrouped.push(item);
+  });
+
+  const renderUnit = ({ u, modes }) => (
+    <div key={u.filePath} style={{ background: "#f5f5f5", borderRadius: 6, padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 2px" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.fileName}</span>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        {modes.map(({ mode, key, num }) => (
+          <div key={key} style={{ width: thumbW }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "0 2px 3px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+                <input type="checkbox" checked={printChecked.has(key)} onChange={() => togglePrintCheck(key)}
+                  style={{ accentColor: mode === "answer" ? "#00391e" : "#ec6619", width: 12, height: 12 }} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: "#fff", background: mode === "answer" ? "#00391e" : "#ec6619", borderRadius: 3, padding: "1px 5px" }}>
+                  {mode === "answer" ? "ANSWER" : "WORKSHEET"}
+                </span>
+              </label>
+              <span style={{ fontSize: 9, color: "#bbb", marginLeft: "auto" }}>{num}/{totalPages}</span>
+            </div>
+            <div style={{ width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
+              <div id={`thumb-${key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
+                <Preview unit={u.unit} isBlank={mode === "blank"} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${key}`} />
+              </div>
             </div>
           </div>
-        ) : (
-          <div style={{ width: thumbW, height: thumbH, borderRadius: 4, border: "2px dashed #e5e7eb", boxSizing: "border-box", background: "#fafafa" }} />
-        )}
-      </div>
-    );
-  };
-
-  const renderFile = (u) => (
-    <div key={u.filePath} style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#1f2937", padding: "0 2px 6px" }}>{u.fileName}</div>
-      <div style={{ display: "flex", gap }}>
-        {renderThumb(u, "answer")}
-        {renderThumb(u, "blank")}
+        ))}
       </div>
     </div>
   );
 
-
-  if (checkedFiles.length === 0) return <div style={{ color: "#999", fontSize: 12, padding: 40, textAlign: "center" }}>왼쪽에서 인쇄할 페이지를 선택하세요</div>;
+  const renderSection = (items) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "flex-start" }}>
+      {items.map(renderUnit)}
+    </div>
+  );
 
   return (
-    <div ref={containerRef} id="print-thumbs" style={{ width: "100%", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 20 }}>
-      {Object.entries(grouped).map(([gName, files]) => (
-        <div key={gName}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#374151", padding: "0 4px 8px", borderBottom: "2px solid #d1d5db", marginBottom: 12 }}>{gName}</div>
-          {files.map(renderFile)}
+    <div id="print-thumbs" style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 20 }}>
+      {Object.entries(grouped).map(([gName, items]) => (
+        <div key={gName} style={{ background: "#eaeaea", borderRadius: 8, padding: "10px 12px" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", padding: "0 2px 10px", borderBottom: "2px solid #ccc", marginBottom: 12 }}>{gName}</div>
+          {renderSection(items)}
         </div>
       ))}
-      {ungrouped.length > 0 && (
-        <div>
-          {Object.keys(grouped).length > 0 && <div style={{ fontSize: 15, fontWeight: 800, color: "#999", padding: "0 4px 8px", borderBottom: "2px solid #e5e7eb", marginBottom: 12 }}>미분류</div>}
-          {ungrouped.map(renderFile)}
-        </div>
-      )}
+      {ungrouped.length > 0 && renderSection(ungrouped)}
     </div>
   );
 }
@@ -1106,12 +1098,17 @@ export default function App() {
             <div className="no-print" style={{ background: "#fdf8f4", borderBottom: "1px solid #e5e7eb", padding: "6px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
               <span style={{ fontSize: 11, color: "#888" }}>{printChecked.size}페이지 선택됨</span>
               <div style={{ flex: 1 }} />
-              <button onClick={executePrint} disabled={printing || printChecked.size === 0} style={{ padding: "5px 16px", borderRadius: 5, border: "none", background: (printing || printChecked.size === 0) ? "#ccc" : "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: (printing || printChecked.size === 0) ? "default" : "pointer" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <button onClick={() => setPrintZoom(z => Math.max(30, z - 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>−</button>
+                <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 32, textAlign: "center" }}>{printZoom}%</span>
+                <button onClick={() => setPrintZoom(z => Math.min(200, z + 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
+              </div>
+              <button onClick={executePrint} disabled={printing || printChecked.size === 0} style={{ padding: "5px 16px", borderRadius: 5, border: "none", background: (printing || printChecked.size === 0) ? "#ccc" : "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: (printing || printChecked.size === 0) ? "default" : "pointer", marginLeft: 4 }}>
                 {printing ? "처리 중..." : "🖨 인쇄"}
               </button>
             </div>
             <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
-              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} zoom={printZoom} />
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} thumbW={Math.round(370 * printZoom / 100)} />
             </div>
           </div>
         </div>
