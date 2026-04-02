@@ -241,10 +241,12 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
           if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
         }}
         style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: isEmpty ? "#eee" : "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
-      {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#00391e", "#fff")}
-      {TB(cell.bold, () => upd("bold", !cell.bold), "굵게", "B")}
-      {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (기본: 숨김)", "표시", "#f59e0b", "#78350f")}
-      <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
+      <div className="ec-hover" style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+        {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#00391e", "#fff")}
+        {TB(cell.bold, () => upd("bold", !cell.bold), "굵게", "B")}
+        {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (기본: 숨김)", "표시", "#f59e0b", "#78350f")}
+        <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
+      </div>
     </div>
   );
 }
@@ -375,6 +377,38 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
   );
 }
 
+/* ═══════ InlinePreviewCell — 편집 행과 나란히 보여주는 셀 미리보기 ═══════ */
+function InlinePreviewCell({ cell, isBlank, tags, numColor, idx, rows, side }) {
+  const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
+  const show = !isBlank || cell.vis;
+  const tc = tagColor(cell.tag, tags, numColor);
+  const { ghostTag, ghostMark } = rows ? findParentGhosts(rows, idx, side) : { ghostTag: null, ghostMark: null };
+  if (cell.hdr) return (
+    <div style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 8px", background: "#e8efe9", fontWeight: 800, fontSize: 11, color: "#00391e", letterSpacing: 1.5, overflow: "hidden" }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
+    </div>
+  );
+  return (
+    <div style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: "0 8px", background: isEmpty ? "#f8f8f8" : "#fff", overflow: "hidden" }}>
+      {cell.tag ? (
+        <span style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
+      ) : ghostTag ? (
+        <span style={{ padding: "1px 6px", borderRadius: 3, fontSize: 9, fontWeight: 700, flexShrink: 0, visibility: "hidden" }}>{ghostTag}</span>
+      ) : null}
+      {cell.mark ? (
+        <span style={{ fontSize: 10, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.mark}</span>
+      ) : ghostMark ? (
+        <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0, visibility: "hidden" }}>{ghostMark}</span>
+      ) : null}
+      {show && cell.text ? (
+        <span style={{ fontSize: 11, color: "#1f2937", fontWeight: cell.bold ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: cell.bold ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa" }}>{cell.text}</span>
+      ) : (!show && cell.text) ? (
+        <span style={{ fontSize: 11, color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>••••••</span>
+      ) : null}
+    </div>
+  );
+}
+
 function MItem({ onClick, children }) {
   const [hover, setHover] = useState(false);
   return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? "#f3f4f6" : "none", textAlign: "left", fontSize: 11.5, cursor: "pointer", borderRadius: 3, color: "#374151" }}>{children}</button>;
@@ -474,16 +508,11 @@ export default function App() {
   const [settings, setSettingsState] = useState({ ...DEFAULT_SETTINGS }); // 전역 설정
 
   // UI 상태
-  const [previewMode, setPreviewMode] = useState("answer");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+const [settingsOpen, setSettingsOpen] = useState(false);
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [newGrp, setNewGrp] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [previewZoom, setPreviewZoom] = useState(100);
   const [printZoom, setPrintZoom] = useState(100);
-  const [splitPct, setSplitPct] = useState(50);
-  const splitDragging = useRef(false);
-  const splitContainerRef = useRef(null);
   const saveTimerRef = useRef(null);
   const historyRef = useRef([]); // undo 스택
   const redoRef = useRef([]);    // redo 스택
@@ -907,6 +936,8 @@ export default function App() {
         }
         input:focus,select:focus{border-color:#f5a855!important}
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+        .ec-hover{opacity:0;transition:opacity .15s}
+        [data-row]:hover .ec-hover{opacity:1}
       `}</style>
 
       {/* ═══ 최상위: 로고 + 모드 탭 ═══ */}
@@ -974,58 +1005,72 @@ export default function App() {
             </>}
           </div>
 
-          {/* 편집 메인 */}
+          {/* 편집 메인 — 3열 (편집 | ANSWER | WORKSHEET) */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
             {/* 서브바 */}
             <div className="no-print" style={{ background: "#f9faf8", borderBottom: "1px solid #e5e7eb", padding: "5px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-              {unit ? (<>
+              {unit ? (
                 <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                  <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} style={{ fontSize: 14, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 170 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+                  <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} style={{ fontSize: 14, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 200 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
                   <span style={{ fontSize: 13, color: "#bbb", cursor: "text" }} onClick={(e) => { e.target.previousSibling.focus(); }}>✎</span>
                 </div>
-                <div style={{ display: "flex", gap: 2, background: "#e8efe9", borderRadius: 6, padding: 2 }}>
-                  {[{ k: "answer", l: "ANSWER" }, { k: "blank", l: "WORKSHEET" }].map((v) => (
-                    <button key={v.k} onClick={() => setPreviewMode(v.k)} style={{
-                      padding: "3px 12px", borderRadius: 5, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5,
-                      background: previewMode === v.k ? "#fff" : "transparent",
-                      color: previewMode === v.k ? (v.k === "answer" ? "#00391e" : "#ec6619") : "#999",
-                      boxShadow: previewMode === v.k ? "0 1px 2px rgba(0,0,0,.06)" : "none",
-                    }}>{v.l}</button>
+              ) : <span style={{ color: "#aaa", fontSize: 12 }}>사이드바에서 단원을 선택하세요</span>}
+            </div>
+            {/* 3열 에디터 */}
+            <div style={{ flex: 1, overflowY: "auto", background: "#fafafa" }}>
+              {unit ? (
+                <div>
+                  {/* 열 헤더 */}
+                  <div style={{ display: "flex", position: "sticky", top: 0, zIndex: 10, background: "#eee", borderBottom: "2px solid #ddd" }}>
+                    <div style={{ flex: 3, padding: "5px 10px", fontSize: 10, fontWeight: 700, color: "#888", letterSpacing: 0.5 }}>편집</div>
+                    <div style={{ flex: 2, padding: "5px 10px", fontSize: 10, fontWeight: 700, color: "#00391e", borderLeft: "1px solid #ddd", letterSpacing: 0.5 }}>ANSWER</div>
+                    <div style={{ flex: 2, padding: "5px 10px", fontSize: 10, fontWeight: 700, color: "#ec6619", borderLeft: "1px solid #ddd", letterSpacing: 0.5 }}>WORKSHEET</div>
+                  </div>
+                  {/* 왼쪽 섹션 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px 4px" }}>
+                    <span style={{ padding: "2px 10px", borderRadius: 4, background: "#00391e", color: "#fff", fontSize: 11, fontWeight: 800 }}>왼쪽</span>
+                    <span style={{ fontSize: 10, color: "#aaa" }}>30행</span>
+                  </div>
+                  {unit.rows.map((row, i) => (
+                    <div key={`l-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
+                      <div style={{ flex: 3 }}>
+                        <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                      </div>
+                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
+                        <InlinePreviewCell cell={row.l} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="l" />
+                      </div>
+                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
+                        <InlinePreviewCell cell={row.l} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="l" />
+                      </div>
+                    </div>
+                  ))}
+                  {/* 오른쪽 섹션 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 10px 6px" }}>
+                    <div style={{ flex: 1, height: 2, background: "#ec6619", borderRadius: 1, opacity: 0.3 }} />
+                    <span style={{ padding: "2px 10px", borderRadius: 4, background: "#ec6619", color: "#fff", fontSize: 11, fontWeight: 800 }}>오른쪽</span>
+                    <span style={{ fontSize: 10, color: "#aaa" }}>30행</span>
+                    <div style={{ flex: 1, height: 2, background: "#ec6619", borderRadius: 1, opacity: 0.3 }} />
+                  </div>
+                  {unit.rows.map((row, i) => (
+                    <div key={`r-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
+                      <div style={{ flex: 3 }}>
+                        <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                      </div>
+                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
+                        <InlinePreviewCell cell={row.r} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="r" />
+                      </div>
+                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
+                        <InlinePreviewCell cell={row.r} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="r" />
+                      </div>
+                    </div>
                   ))}
                 </div>
-                <div style={{ flex: 1 }} />
-                <button onClick={() => setPreviewZoom(Math.max(30, previewZoom - 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>−</button>
-                <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 32, textAlign: "center" }}>{previewZoom}%</span>
-                <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
-              </>) : <span style={{ color: "#aaa", fontSize: 12 }}>사이드바에서 단원을 선택하세요</span>}
-            </div>
-            {/* Split: 에디터 + 미리보기 */}
-            <div ref={splitContainerRef} style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}
-              onMouseMove={(e) => { if (!splitDragging.current) return; const rect = splitContainerRef.current.getBoundingClientRect(); const pct = ((e.clientX - rect.left) / rect.width) * 100; setSplitPct(Math.max(20, Math.min(80, pct))); }}
-              onMouseUp={() => { splitDragging.current = false; }}
-              onMouseLeave={() => { splitDragging.current = false; }}
-            >
-              <div className="no-print" style={{ width: `${splitPct}%`, overflowY: "auto", padding: "8px 10px", background: "#fafafa" }}>
-                {unit ? (
-                  <>
-                    <EditorSideGroup side="l" label="왼쪽 (L)" color="#00391e" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
-                    <EditorSideGroup side="r" label="오른쪽 (R)" color="#ec6619" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
-                  </>
-                ) : (
-                  <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-                    <div style={{ fontSize: 12 }}>사이드바에서 단원을 선택하세요</div>
-                  </div>
-                )}
-              </div>
-              <div className="no-print" onMouseDown={() => { splitDragging.current = true; }} style={{ width: 6, cursor: "col-resize", background: "#e5e7eb", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}>
-                <div style={{ width: 2, height: 32, borderRadius: 1, background: "#aaa" }} />
-              </div>
-              <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPreviewZoom(z => Math.max(30, Math.min(150, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "safe center", padding: "8px 8px" }}>
-                <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top left", width: 740 * previewZoom / 100, height: 1046 * previewZoom / 100, flexShrink: 0 }}>
-                  <Preview unit={unit} isBlank={previewMode === "blank"} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
+              ) : (
+                <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
+                  <div style={{ fontSize: 12 }}>사이드바에서 단원을 선택하세요</div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
