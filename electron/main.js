@@ -208,6 +208,10 @@ ipcMain.handle("delete-group-folder", (event, folderPath) => {
 });
 
 ipcMain.handle("get-app-settings", () => loadAppSettings());
+ipcMain.handle("save-app-settings", (_, partial) => {
+  const cur = loadAppSettings();
+  saveAppSettings({ ...cur, ...partial });
+});
 
 ipcMain.handle("get-workspace", () => workspaceDir);
 

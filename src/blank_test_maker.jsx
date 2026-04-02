@@ -106,7 +106,7 @@ const RELATIVE_ROWS = [
 ];
 
 const DEFAULT_SETTINGS = { logo: null, slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS };
-const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]), settings: DEFAULT_SETTINGS };
+const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
 /* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
 function CellProps({ cell, upd, tags, numColor, ghostTag, ghostMark }) {
@@ -418,7 +418,7 @@ function MItem({ onClick, children }) {
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
-function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily }) {
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, logo, slogan, tags, numColor }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(600);
   useEffect(() => {
@@ -465,7 +465,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily 
       {/* 썸네일 */}
       <div onClick={() => togglePrintCheck(p.key)} style={{ position: "relative", cursor: "pointer", width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
         <div id={`thumb-${p.key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
-          <Preview unit={p.unit} isBlank={p.mode === "blank"} logo={p.unit.settings?.logo} slogan={p.unit.settings?.slogan} fontFamily={fontFamily} tags={p.unit.settings?.tags || DEFAULT_TAGS} numColor={p.unit.settings?.numTagColor} printId={`pv-${p.key}`} />
+          <Preview unit={p.unit} isBlank={p.mode === "blank"} logo={logo} slogan={slogan} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${p.key}`} />
         </div>
       </div>
     </div>
@@ -504,9 +504,10 @@ export default function App() {
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
 
   // 현재 편집 중인 단원
-  const [unit, setUnit] = useState(null); // {title, rows, settings}
+  const [unit, setUnit] = useState(null); // {title, rows}
   const [currentFile, setCurrentFile] = useState(null); // 파일 경로
   const [dirty, setDirty] = useState(false); // 변경 여부
+  const [settings, setSettingsState] = useState({ ...DEFAULT_SETTINGS }); // 전역 설정
 
   // UI 상태
   const [previewMode, setPreviewMode] = useState("answer");
@@ -526,15 +527,31 @@ export default function App() {
   const [printChecked, setPrintChecked] = useState(new Set()); // "filePath::answer" | "filePath::blank"
   const [printing, setPrinting] = useState(false);
 
-  const settings = unit?.settings || DEFAULT_SETTINGS;
+  // 전역 설정 변경 + 저장
+  const setSettings = (s) => {
+    setSettingsState((prev) => {
+      const next = { ...prev, ...s };
+      window.electronAPI?.saveAppSettings({ editorSettings: next });
+      return next;
+    });
+  };
 
   // 마이그레이션 (구 형식 파일 지원)
   const migrateUnit = (p) => {
     if (!p.rows) return p;
-    if (!p.settings) p.settings = { ...DEFAULT_SETTINGS };
-    if (!p.settings.tags) p.settings.tags = DEFAULT_TAGS;
-    delete p.settings.ptags;
-    p.settings.tags = p.settings.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
+    // 구 형식: unit 안에 settings가 있으면 전역 설정으로 흡수 (최초 1회)
+    if (p.settings) {
+      const us = p.settings;
+      if (!us.tags) us.tags = DEFAULT_TAGS;
+      delete us.ptags;
+      us.tags = us.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
+      // 전역 설정이 기본값이면 파일의 설정으로 덮어씀
+      setSettingsState((prev) => {
+        const isDefault = !prev.logo && prev.slogan === DEFAULT_SETTINGS.slogan && !prev.customFont;
+        return isDefault ? { ...prev, ...us } : prev;
+      });
+      delete p.settings;
+    }
     p.rows = padRows(p.rows);
     p.rows.forEach((r) => { [r.l, r.r].forEach((c) => {
       if (c.mark === undefined) c.mark = "";
@@ -558,7 +575,7 @@ export default function App() {
       let d = JSON.parse(result.content);
       // 구 형식 (전체 데이터 파일) 호환: 첫 번째 unit 추출
       if (d.units && !d.rows) {
-        const oldSettings = d.settings || DEFAULT_SETTINGS;
+        const oldSettings = d.settings || {};
         d = { ...d.units[0], settings: oldSettings };
       }
       d = migrateUnit(d);
@@ -594,7 +611,6 @@ export default function App() {
     });
     setDirty(true);
   };
-  const setSettings = (s) => updateUnit((u) => ({ ...u, settings: { ...u.settings, ...s } }));
 
   // 폴더 스캔 결과 적용
   const applyFolderScan = ({ dirPath, files, groups: grps }) => {
@@ -611,12 +627,15 @@ export default function App() {
     setGroups(scan.groups);
   };
 
-  // Electron 이벤트
+  // Electron 이벤트 + 전역 설정 로드
   useEffect(() => {
     if (!window.electronAPI) return;
     window.electronAPI.onFolderOpened(applyFolderScan);
     window.electronAPI.onMenuNewUnit(() => addNewUnit(null));
     window.electronAPI.onMenuSave(() => saveFile());
+    window.electronAPI.getAppSettings().then((s) => {
+      if (s?.editorSettings) setSettingsState({ ...DEFAULT_SETTINGS, ...s.editorSettings });
+    });
   }, []);
 
   // 인쇄 탭으로 전환 시 모든 파일 로드
@@ -630,7 +649,7 @@ export default function App() {
       if (!result.success) continue;
       try {
         let d = JSON.parse(result.content);
-        if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || DEFAULT_SETTINGS };
+        if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || {} };
         d = migrateUnit(d);
         if (d.rows) loaded.push({ filePath: f.path, fileName: f.name.replace(/\.(btm|json)$/, ""), group: f.group, unit: d });
       } catch {}
@@ -713,7 +732,7 @@ export default function App() {
     const existing = new Set(fileList.map((f) => f.name));
     while (existing.has(`${name}.btm`)) { name = `새 단원 (${n++})`; }
     const filePath = `${dir}/${name}.btm`;
-    const newUnit = { title: name, rows: padRows([hdrRow("SUMMARY", "PRACTICE")]), settings: { ...DEFAULT_SETTINGS } };
+    const newUnit = { title: name, rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
     await window.electronAPI.writeFile(filePath, JSON.stringify(newUnit, null, 2));
     await refreshFolder();
     setUnit(newUnit);
@@ -876,6 +895,7 @@ export default function App() {
         </div>
         <div style={{ flex: 1 }} />
         <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, fontSize: 10 }}>📁 폴더 변경</button>
+        <button onClick={() => setSettingsOpen(true)} style={{ ...BS, fontSize: 10 }}>⚙ 설정</button>
       </div>
 
       {/* ═══ 편집 모드 ═══ */}
@@ -927,7 +947,6 @@ export default function App() {
               )}
             </div>
             <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb" }}>
-              <button onClick={() => setSettingsOpen(true)} style={{ ...BS, width: "100%" }} disabled={!unit}>⚙ 설정</button>
             </div>
             </>}
           </div>
@@ -1056,7 +1075,7 @@ export default function App() {
               </button>
             </div>
             <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
-              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} />
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} logo={settings.logo} slogan={settings.slogan} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
             </div>
           </div>
         </div>

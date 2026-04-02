@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   scanFolder: (dirPath) => ipcRenderer.invoke("scan-folder", dirPath),
   getWorkspace: () => ipcRenderer.invoke("get-workspace"),
   getAppSettings: () => ipcRenderer.invoke("get-app-settings"),
+  saveAppSettings: (partial) => ipcRenderer.invoke("save-app-settings", partial),
 
   // 파일 CRUD
   readFile: (filePath) => ipcRenderer.invoke("read-file", filePath),
