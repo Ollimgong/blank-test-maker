@@ -1,0 +1,666 @@
+{
+  "title": "새 단원 (1)",
+  "rows": [
+    {
+      "id": "phxi56mu",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "SUMMARY",
+        "vis": true,
+        "bold": false,
+        "hdr": true,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "PRACTICE",
+        "vis": true,
+        "bold": false,
+        "hdr": true,
+        "indent": 0
+      }
+    },
+    {
+      "id": "lr6rj360",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "m7ftlv74",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "3srr3prr",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "isouqctu",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "slcvkgq3",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "dawyio3b",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "wvp7tz3f",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "zhlmg0aj",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "vh72gpgw",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "a8b9qsqv",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "zkhmhrol",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "nnjgqatf",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "bp0ba4xz",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "f4fy4690",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "3bghfuqt",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "jarnq8fh",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "t76yvwcm",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "onuvixs2",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "msqmnbue",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "epu86pfa",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "5qsrt318",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "evtey5pp",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "onx5s9d4",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "d7gzoxeg",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "93cc83ko",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "qwsdxlv6",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "q18v22gy",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "5n7bowmr",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "nuc3hux6",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    }
+  ],
+  "settings": {
+    "logo": null,
+    "slogan": "손에 잡히는 영어",
+    "tags": [
+      {
+        "v": "개념",
+        "c": "#2563EB",
+        "tx": "#fff"
+      },
+      {
+        "v": "형태",
+        "c": "#ec6619",
+        "tx": "#fff"
+      },
+      {
+        "v": "예문",
+        "c": "#059669",
+        "tx": "#fff"
+      },
+      {
+        "v": "주의",
+        "c": "#dc2626",
+        "tx": "#fff"
+      },
+      {
+        "v": "예시",
+        "c": "#7e7e7f",
+        "tx": "#fff"
+      }
+    ]
+  }
+}

@@ -1,0 +1,635 @@
+{
+  "title": "관계대명사",
+  "rows": [
+    {
+      "id": "0xkjiklr",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "SUMMARY",
+        "vis": true,
+        "bold": false,
+        "hdr": true,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "PRACTICE",
+        "vis": true,
+        "bold": false,
+        "hdr": true,
+        "indent": 0
+      }
+    },
+    {
+      "id": "2qqq83ts",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "관계대명사는 [접속사 + 대명사] 의 역할을 하며",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "영작연습",
+        "vis": true,
+        "bold": true,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "sho0f62i",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "관계대명사가 이끄는 절은 앞의 명사(선행사)를 수식한다",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 1
+      },
+      "r": {
+        "tag": "1",
+        "mark": "",
+        "text": "나는 착한 소년을 안다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "f2597j9c",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "주격관계대명사",
+        "vis": true,
+        "bold": true,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "I know a boy.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "2yjoolvp",
+      "l": {
+        "tag": "개념",
+        "mark": "",
+        "text": "주격관계대명사는 관계대명사가 이끄는 절에서",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "The boy is kind.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "csxe6h6u",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "주어의 역할을 한다",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 1
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> I know a boy ( who is kind ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "r4r2gh59",
+      "l": {
+        "tag": "형태",
+        "mark": "",
+        "text": "- 선행사가 사람일 때 : who",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "2",
+        "mark": "",
+        "text": "그는 내가 믿는 친구를 가지고 있다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "etdpg3rw",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "- 선행사가 사람이 아닐 때 : which",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "He has a friend.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "em78bnuw",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "She is a girl ( who likes pasta ). zz",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "I trust the friend.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "pbeydyci",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "선행사 (사람O)",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> He has a friend ( who(m) I trust ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "holivapf",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "This is a house ( which is expensive ). dd",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "3",
+        "mark": "",
+        "text": "우리는 빠른 차를 봤다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "q32z66ui",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "선행사 (사람X)ZzZ",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "We saw a car.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "epogs5zw",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "목적격관계대명사sdfsdf",
+        "vis": true,
+        "bold": true,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "The car was fast.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "50wm83f1",
+      "l": {
+        "tag": "개념",
+        "mark": "",
+        "text": "목적격관계대명사는 관계대명사가 이끄는 절에서sdfsdf",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> We saw a car ( which was fast ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "3q6ist1s",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "목적어의 역할을 한다ss",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 1
+      },
+      "r": {
+        "tag": "4",
+        "mark": "",
+        "text": "우리가 어제 만난 그 선생님은 착하다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "ls6kl8j8",
+      "l": {
+        "tag": "형태",
+        "mark": "",
+        "text": "- 선행사가 사람일 때 : who / whom",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "The teacher is kind.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "qpdix20m",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "- 선행사가 사람이 아닐 때 : whichss",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "We met the teacher yesterday.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "ks1yskwi",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "She is a girl ( who(m) I like ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> The teacher ( who(m) we met yesterday )",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "ac5buyzz",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "선행사 (사람O)",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "is kind.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "gf0pnaoc",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "This is a house ( which Joy bought ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "5",
+        "mark": "",
+        "text": "그는 머리가 긴 소녀를 만났다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "0f2bvbyr",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "선행사 (사람X)",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "He met a girl.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "okkpktj4",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "소유격관계대명사",
+        "vis": true,
+        "bold": true,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "Her hair is long.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "ewc8jcx0",
+      "l": {
+        "tag": "개념",
+        "mark": "",
+        "text": "소유격관계대명사는 관계대명사가 이끄는 절에서",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> He met a girl ( whose hair is long ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "2b06ar2y",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "소유격 역할을 한다",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 1
+      },
+      "r": {
+        "tag": "6",
+        "mark": "",
+        "text": "그는 부산에서 일하는 의사를 안다.",
+        "vis": true,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "aq6m4ymk",
+      "l": {
+        "tag": "형태",
+        "mark": "",
+        "text": "선행사와 상관없이 whose",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(1)",
+        "text": "He knows a doctor.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "xdcjs7z8",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "She is a girl ( whose hair is long ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "(2)",
+        "text": "The doctor works in Busan.",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "oapllmpc",
+      "l": {
+        "tag": "예문",
+        "mark": "",
+        "text": "This is a house ( whose roof is red ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "=> He knows a doctor ( who works in Busan ).",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "11f92nks",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "nlcombem",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    },
+    {
+      "id": "27mainym",
+      "l": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      },
+      "r": {
+        "tag": "",
+        "mark": "",
+        "text": "",
+        "vis": false,
+        "bold": false,
+        "hdr": false,
+        "indent": 0
+      }
+    }
+  ]
+}
