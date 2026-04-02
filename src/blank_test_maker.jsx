@@ -355,22 +355,22 @@ function InlinePreviewCell({ cell, isBlank, tags, numColor }) {
   const tc = tagColor(cell.tag, tags, numColor);
   const indLv = cell.indent || 0;
   if (cell.hdr) return (
-    <div style={{ minHeight: 30, display: "flex", alignItems: "center", padding: "0 8px", background: "#fff", fontWeight: 800, fontSize: 13, color: "#00391e", letterSpacing: 0.5, overflow: "hidden", borderBottom: "2px solid #c8d9ca" }}>
+    <div style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 10px", background: "#fff", fontWeight: 800, fontSize: 12, color: "#00391e", letterSpacing: 2, overflow: "hidden", borderBottom: "2px solid #c8d9ca" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
     </div>
   );
   return (
-    <div style={{ minHeight: 30, display: "flex", alignItems: "center", gap: 4, padding: `0 8px 0 ${8 + indLv * 16}px`, background: isEmpty ? "#f8f8f8" : "#fff", overflow: "hidden" }}>
+    <div style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: `0 10px 0 ${10 + indLv * 16}px`, background: isEmpty ? "#fafafa" : "#fff", overflow: "hidden" }}>
       {cell.tag && (
-        <span style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 11, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
+        <span style={{ padding: "1px 7px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
       )}
       {cell.mark && (
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.mark}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.mark}</span>
       )}
       {show && cell.text ? (
-        <span style={{ fontSize: 13, color: "#1f2937", fontWeight: cell.bold ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: cell.bold ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa" }}>{cell.text}</span>
+        <span style={{ fontSize: 12, color: "#1f2937", fontWeight: cell.bold ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: cell.bold ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa" }}>{cell.text}</span>
       ) : (!show && cell.text) ? (
-        <span style={{ fontSize: 13, color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>••••••</span>
+        <span style={{ fontSize: 12, color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>••••••</span>
       ) : null}
     </div>
   );
@@ -484,6 +484,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const [inlineAddGroup, setInlineAddGroup] = useState(null);
   const [inlineAddName, setInlineAddName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editSide, setEditSide] = useState("l");
   const [printZoom, setPrintZoom] = useState(100);
   const editorScrollRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -1144,47 +1145,33 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }}
                       onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
                   </div>
-                  <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e0e0e0", height: 28, alignItems: "center" }}>
-                    <div style={{ flex: 3, padding: "0 12px", fontSize: 11, fontWeight: 700, color: "#6366f1", letterSpacing: 0.5 }}>Edit</div>
-                    <div style={{ flex: 2, padding: "0 12px", fontSize: 11, fontWeight: 700, color: "#00391e", borderLeft: "1px solid #e5e7eb", letterSpacing: 0.5 }}>ANSWER</div>
-                    <div style={{ flex: 2, padding: "0 12px", fontSize: 11, fontWeight: 700, color: "#ec6619", borderLeft: "1px solid #e5e7eb", letterSpacing: 0.5 }}>WORKSHEET</div>
+                  <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e5e7eb", height: 28, alignItems: "center" }}>
+                    <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Edit</div>
+                    <div style={{ width: 684, flexShrink: 0, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>Preview</div>
                   </div>
-                  </div>
-                  {/* 왼쪽 섹션 */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 12px 6px" }}>
-                    <span style={{ padding: "2px 10px", borderRadius: 4, background: "#00391e", color: "#fff", fontSize: 12, fontWeight: 700 }}>왼쪽</span>
-                    <span style={{ fontSize: 11, color: "#bbb" }}>30행</span>
-                  </div>
-                  {unit.rows.map((row, i) => (
-                    <div key={`l-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
-                      <div style={{ flex: 3 }}>
-                        <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
-                      </div>
-                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
-                      </div>
-                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
-                      </div>
+                  {/* 왼쪽/오른쪽 탭 + ANSWER/WORKSHEET */}
+                  <div style={{ display: "flex", alignItems: "center", padding: "0 12px", height: 32, background: "#fafafa", borderBottom: "1px solid #e5e7eb" }}>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                      <button onClick={() => { setEditSide("l"); editorScrollRef.current?.scrollTo(0, 0); }} style={{ padding: "3px 12px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: editSide === "l" ? "#00391e" : "transparent", color: editSide === "l" ? "#fff" : "#aaa" }}>왼쪽</button>
+                      <button onClick={() => { setEditSide("r"); editorScrollRef.current?.scrollTo(0, 0); }} style={{ padding: "3px 12px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: editSide === "r" ? "#ec6619" : "transparent", color: editSide === "r" ? "#fff" : "#aaa" }}>오른쪽</button>
                     </div>
-                  ))}
-                  {/* 오른쪽 섹션 */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 12px 6px" }}>
-                    <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
-                    <span style={{ padding: "2px 10px", borderRadius: 4, background: "#ec6619", color: "#fff", fontSize: 12, fontWeight: 700 }}>오른쪽</span>
-                    <span style={{ fontSize: 11, color: "#bbb" }}>30행</span>
-                    <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+                    <div style={{ width: 684, flexShrink: 0, display: "flex", alignItems: "center", paddingLeft: 2, boxSizing: "border-box" }}>
+                      <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 600, color: "#00391e" }}>ANSWER <span style={{ fontWeight: 400, color: "#999" }}>암기/채점용</span></div>
+                      <div style={{ width: 1, height: 12, background: "#ddd" }} />
+                      <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 600, color: "#ec6619" }}>WORKSHEET <span style={{ fontWeight: 400, color: "#999" }}>시험용</span></div>
+                    </div>
+                  </div>
                   </div>
                   {unit.rows.map((row, i) => (
-                    <div key={`r-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
-                      <div style={{ flex: 3 }}>
-                        <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                    <div key={`${editSide}-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <EditorCell side={editSide} cell={row[editSide]} upd={(f, v) => updateCellField(row.id, editSide, f, v)} onUp={() => moveCellContent(row.id, editSide, -1)} onDown={() => moveCellContent(row.id, editSide, 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
                       </div>
-                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
+                      <div style={{ width: 342, flexShrink: 0, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>
+                        <InlinePreviewCell cell={row[editSide]} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
-                      <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
+                      <div style={{ width: 342, flexShrink: 0, borderLeft: "1px solid #e5e7eb", boxSizing: "border-box" }}>
+                        <InlinePreviewCell cell={row[editSide]} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                     </div>
                   ))}
