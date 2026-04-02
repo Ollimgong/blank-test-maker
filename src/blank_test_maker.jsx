@@ -105,14 +105,8 @@ const RELATIVE_ROWS = [
   mk({ t: "예문", x: "This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
 ];
 
-const DEFAULT_STATE = {
-  groups: [{ id: "g1", name: "문법 기초", collapsed: false }],
-  units: [
-    { id: "u1", groupId: "g1", title: "수동태", rows: padRows(PASSIVE_ROWS) },
-    { id: "u2", groupId: "g1", title: "관계대명사", rows: padRows(RELATIVE_ROWS) },
-  ],
-  settings: { logo: null, slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS },
-};
+const DEFAULT_SETTINGS = { logo: null, slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS };
+const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]), settings: DEFAULT_SETTINGS };
 
 /* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
 function CellProps({ cell, upd, tags, numColor, ghostTag, ghostMark }) {
@@ -425,178 +419,270 @@ function MItem({ onClick, children }) {
 
 /* ═══════ MAIN APP ═══════ */
 export default function App() {
-  const [data, setData] = useState(DEFAULT_STATE);
-  const [curId, setCurId] = useState(DEFAULT_STATE.units[0]?.id || null);
+  // 작업 폴더 상태
+  const [workspace, setWorkspace] = useState(null); // 폴더 경로
+  const [fileList, setFileList] = useState([]); // [{name, path, group}]
+  const [groups, setGroups] = useState([]); // [{name, path}]
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+
+  // 현재 편집 중인 단원
+  const [unit, setUnit] = useState(null); // {title, rows, settings}
+  const [currentFile, setCurrentFile] = useState(null); // 파일 경로
+  const [dirty, setDirty] = useState(false); // 변경 여부
+
+  // UI 상태
   const [previewMode, setPreviewMode] = useState("answer");
-  const [loaded, setLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editGroupId, setEditGroupId] = useState(null);
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [newGrp, setNewGrp] = useState("");
-  const [fileMenuOpen, setFileMenuOpen] = useState(false);
-  const [currentFile, setCurrentFile] = useState(null);
-  const fileMenuRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewZoom, setPreviewZoom] = useState(100);
   const [splitPct, setSplitPct] = useState(50);
   const splitDragging = useRef(false);
   const splitContainerRef = useRef(null);
+  const saveTimerRef = useRef(null);
 
-  const unit = data.units.find((u) => u.id === curId) || null;
+  const settings = unit?.settings || DEFAULT_SETTINGS;
 
-  const migrateData = (p) => {
-    if (!p.units) return null;
-    if (p.settings?.academyName && !p.settings.slogan) { p.settings.slogan = p.settings.academyName; delete p.settings.academyName; }
-    p.units = p.units.map((u) => {
-      if (u.headerL || u.headerR) { const hasHdr = u.rows.length > 0 && u.rows[0].l?.hdr; if (!hasHdr) u.rows = [hdrRow(u.headerL || "SUMMARY", u.headerR || "PRACTICE"), ...u.rows]; delete u.headerL; delete u.headerR; }
-      u.rows = padRows(u.rows); return u;
-    });
-    if (!p.settings) p.settings = {};
+  // 마이그레이션 (구 형식 파일 지원)
+  const migrateUnit = (p) => {
+    if (!p.rows) return p;
+    if (!p.settings) p.settings = { ...DEFAULT_SETTINGS };
     if (!p.settings.tags) p.settings.tags = DEFAULT_TAGS;
     delete p.settings.ptags;
     p.settings.tags = p.settings.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
-    p.units.forEach((u) => { u.rows.forEach((r) => { [r.l, r.r].forEach((c) => {
+    p.rows = padRows(p.rows);
+    p.rows.forEach((r) => { [r.l, r.r].forEach((c) => {
       if (c.mark === undefined) c.mark = "";
       if (c.indent === true) c.indent = 1; else if (!c.indent) c.indent = 0;
       if (c.num) { if (!c.tag) c.tag = c.num; } delete c.num;
       if (c.ptag !== undefined) { if (!c.mark) { const pv = c.ptag; c.mark = (pv === "영작" || pv === "수동태") ? `[${pv}]` : pv; } delete c.ptag; }
       if (c.tag && OLD_PTAG_VALUES.has(c.tag)) { if (!c.mark) { const tv = c.tag; c.mark = (tv === "영작" || tv === "수동태") ? `[${tv}]` : tv; } c.tag = ""; }
       if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; }
-    }); }); });
+    }); });
     return p;
   };
 
-  const loadData = (p) => {
-    const d = migrateData(p);
-    if (d) { setData(d); setCurId(d.units[0]?.id || null); }
+  // 파일 열기
+  const openFile = async (filePath) => {
+    if (!window.electronAPI) return;
+    // 현재 파일 저장
+    if (dirty && currentFile && unit) await saveFile();
+    const result = await window.electronAPI.readFile(filePath);
+    if (!result.success) return;
+    try {
+      let d = JSON.parse(result.content);
+      // 구 형식 (전체 데이터 파일) 호환: 첫 번째 unit 추출
+      if (d.units && !d.rows) {
+        const oldSettings = d.settings || DEFAULT_SETTINGS;
+        d = { ...d.units[0], settings: oldSettings };
+      }
+      d = migrateUnit(d);
+      if (!d.rows) return;
+      setUnit(d);
+      setCurrentFile(filePath);
+      setDirty(false);
+    } catch {}
   };
 
-  useEffect(() => { setLoaded(true); }, []);
+  // 파일 저장
+  const saveFile = async () => {
+    if (!window.electronAPI || !currentFile || !unit) return;
+    const content = JSON.stringify(unit, null, 2);
+    await window.electronAPI.writeFile(currentFile, content);
+    setDirty(false);
+  };
 
-  // Electron 메뉴 이벤트 연결
+  // 자동저장 (debounce 1초)
+  useEffect(() => {
+    if (!dirty || !currentFile || !unit) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveFile(), 1000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [unit, dirty]);
+
+  // unit 변경 헬퍼
+  const updateUnit = (fn) => {
+    setUnit((u) => {
+      if (!u) return u;
+      const next = typeof fn === "function" ? fn(u) : { ...u, ...fn };
+      return next;
+    });
+    setDirty(true);
+  };
+  const setSettings = (s) => updateUnit((u) => ({ ...u, settings: { ...u.settings, ...s } }));
+
+  // 폴더 스캔 결과 적용
+  const applyFolderScan = ({ dirPath, files, groups: grps }) => {
+    setWorkspace(dirPath);
+    setFileList(files);
+    setGroups(grps);
+  };
+
+  // 폴더 새로고침
+  const refreshFolder = async () => {
+    if (!window.electronAPI || !workspace) return;
+    const scan = await window.electronAPI.scanFolder(workspace);
+    setFileList(scan.files);
+    setGroups(scan.groups);
+  };
+
+  // Electron 이벤트
   useEffect(() => {
     if (!window.electronAPI) return;
-    window.electronAPI.onFileOpened(({ data: d, filePath }) => { loadData(d); setCurrentFile(filePath); });
-    window.electronAPI.onRequestSave(async ({ filePath }) => {
-      const content = JSON.stringify(data, null, 2);
-      await window.electronAPI.saveFile(filePath, content);
-    });
-    window.electronAPI.onMenuNew(() => { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); setCurrentFile(null); });
-    window.electronAPI.onUnitsImported((unitFiles) => {
-      unitFiles.forEach((d) => {
-        if (d._type === "bt-units" && d.units) {
-          const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; });
-          if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); }
-          setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId);
-        }
-      });
-    });
+    window.electronAPI.onFolderOpened(applyFolderScan);
+    window.electronAPI.onMenuNewUnit(() => addNewUnit(null));
+    window.electronAPI.onMenuSave(() => saveFile());
   }, []);
 
-  useEffect(() => {
-    if (!fileMenuOpen) return;
-    const h = (e) => { if (fileMenuRef.current && !fileMenuRef.current.contains(e.target)) setFileMenuOpen(false); };
-    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
-  }, [fileMenuOpen]);
-
-  const setUnits = (fn) => setData((d) => ({ ...d, units: typeof fn === "function" ? fn(d.units) : fn }));
-  const setGroups = (fn) => setData((d) => ({ ...d, groups: typeof fn === "function" ? fn(d.groups) : fn }));
-  const setSettings = (s) => setData((d) => ({ ...d, settings: { ...d.settings, ...s } }));
-  const updateUnit = (id, upd) => setUnits((us) => us.map((u) => (u.id === id ? (typeof upd === "function" ? upd(u) : { ...u, ...upd }) : u)));
-
-  const addUnit = (gid) => { const u = { id: uid(), groupId: gid, title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) }; setUnits((us) => [...us, u]); setCurId(u.id); };
-  const delUnit = (id) => { if (!confirm("삭제할까요?")) return; setUnits((us) => { const n = us.filter((u) => u.id !== id); if (curId === id) setCurId(n[0]?.id || null); return n; }); };
-  const dupUnit = (id) => {
-    const s = data.units.find((u) => u.id === id); if (!s) return;
-    const d = JSON.parse(JSON.stringify(s)); d.id = uid(); d.title += " (복사)"; d.rows.forEach((r) => { r.id = uid(); });
-    setUnits((us) => [...us, d]); setCurId(d.id);
+  // 새 단원 생성
+  const addNewUnit = async (groupName) => {
+    if (!window.electronAPI || !workspace) return;
+    if (dirty && currentFile && unit) await saveFile();
+    const dir = groupName ? `${workspace}/${groupName}` : workspace;
+    // 겹치지 않는 파일명
+    let name = "새 단원"; let n = 1;
+    const existing = new Set(fileList.map((f) => f.name));
+    while (existing.has(`${name}.btm`)) { name = `새 단원 (${n++})`; }
+    const filePath = `${dir}/${name}.btm`;
+    const newUnit = { title: name, rows: padRows([hdrRow("SUMMARY", "PRACTICE")]), settings: { ...DEFAULT_SETTINGS } };
+    await window.electronAPI.writeFile(filePath, JSON.stringify(newUnit, null, 2));
+    await refreshFolder();
+    setUnit(newUnit);
+    setCurrentFile(filePath);
+    setDirty(false);
   };
 
-  const updateRow = (rid, nr) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.map((r) => (r.id === rid ? nr : r)) }));
-  const updateCellField = (rid, side, field, val) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.map((r) => r.id === rid ? { ...r, [side]: { ...r[side], [field]: val } } : r) }));
-  const delRow = (rid) => updateUnit(curId, (u) => ({ ...u, rows: u.rows.filter((r) => r.id !== rid) }));
-  const moveCellContent = (rid, side, dir) => updateUnit(curId, (u) => {
+  // 파일 삭제
+  const deleteFile = async (filePath) => {
+    if (!window.electronAPI || !confirm("삭제할까요?")) return;
+    await window.electronAPI.deleteFile(filePath);
+    if (currentFile === filePath) { setUnit(null); setCurrentFile(null); setDirty(false); }
+    await refreshFolder();
+  };
+
+  // 파일 복제
+  const duplicateFile = async (filePath) => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.readFile(filePath);
+    if (!result.success) return;
+    const dir = filePath.replace(/[/\\][^/\\]+$/, "");
+    const baseName = filePath.replace(/^.*[/\\]/, "").replace(/\.(btm|json)$/, "");
+    let name = `${baseName} (복사)`; let n = 1;
+    const existing = new Set(fileList.map((f) => f.name));
+    while (existing.has(`${name}.btm`)) { name = `${baseName} (복사 ${n++})`; }
+    const newPath = `${dir}/${name}.btm`;
+    await window.electronAPI.writeFile(newPath, result.content);
+    await refreshFolder();
+    openFile(newPath);
+  };
+
+  // 파일 → 다른 그룹으로 이동
+  const moveFileToGroup = async (filePath, groupName) => {
+    if (!window.electronAPI || !workspace) return;
+    const fileName = filePath.replace(/^.*[/\\]/, "");
+    const newDir = groupName ? `${workspace}/${groupName}` : workspace;
+    const newPath = `${newDir}/${fileName}`;
+    if (newPath === filePath) return;
+    await window.electronAPI.renameFile(filePath, newPath);
+    if (currentFile === filePath) setCurrentFile(newPath);
+    await refreshFolder();
+  };
+
+  // 그룹(폴더) 추가
+  const addGroup = async () => {
+    if (!window.electronAPI || !workspace || !newGrp.trim()) return;
+    await window.electronAPI.createGroupFolder(`${workspace}/${newGrp.trim()}`);
+    setNewGrp(""); setAddGroupOpen(false);
+    await refreshFolder();
+  };
+
+  // 그룹(폴더) 삭제
+  const deleteGroup = async (groupPath) => {
+    if (!window.electronAPI || !confirm("그룹을 삭제할까요? (파일은 미분류로 이동됩니다)")) return;
+    await window.electronAPI.deleteGroupFolder(groupPath);
+    await refreshFolder();
+  };
+
+  const toggleGroup = (name) => setCollapsedGroups((s) => { const n = new Set(s); n.has(name) ? n.delete(name) : n.add(name); return n; });
+
+  // 행 편집 헬퍼
+  const updateCellField = (rid, side, field, val) => updateUnit((u) => ({ ...u, rows: u.rows.map((r) => r.id === rid ? { ...r, [side]: { ...r[side], [field]: val } } : r) }));
+  const moveCellContent = (rid, side, dir) => updateUnit((u) => {
     const rs = u.rows.map(r => ({ ...r, l: { ...r.l }, r: { ...r.r } }));
     const i = rs.findIndex((r) => r.id === rid); const j = i + dir;
     if (j < 0 || j >= rs.length) return u;
     const tmp = rs[i][side]; rs[i][side] = rs[j][side]; rs[j][side] = tmp;
     return { ...u, rows: rs };
   });
-  const addRowAfter = (idx) => updateUnit(curId, (u) => { const rs = [...u.rows]; rs.splice(idx + 1, 0, emptyRow()); return { ...u, rows: rs }; });
-
-  const addGroup = () => { if (!newGrp.trim()) return; setGroups((gs) => [...gs, { id: uid(), name: newGrp.trim(), collapsed: false }]); setNewGrp(""); setAddGroupOpen(false); };
-  const renameGroup = (id, n) => setGroups((gs) => gs.map((g) => (g.id === id ? { ...g, name: n } : g)));
-  const delGroup = (id) => { setGroups((gs) => gs.filter((g) => g.id !== id)); setUnits((us) => us.map((u) => (u.groupId === id ? { ...u, groupId: null } : u))); };
-  const toggleGroup = (id) => setGroups((gs) => gs.map((g) => (g.id === id ? { ...g, collapsed: !g.collapsed } : g)));
 
   const handleLogo = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ logo: ev.target.result }); r.readAsDataURL(f); }; i.click(); };
   const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
-  const saveAs = async () => {
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.saveFileDialog();
-    if (result.canceled) return;
-    const content = JSON.stringify(data, null, 2);
-    const r = await window.electronAPI.saveFile(result.filePath, content);
-    if (r.success) setCurrentFile(result.filePath);
-  };
-  const saveFile = async () => {
-    if (!window.electronAPI) return;
-    if (currentFile) {
-      await window.electronAPI.saveFile(currentFile, JSON.stringify(data, null, 2));
-    } else {
-      await saveAs();
-    }
-  };
-  const openFile = async () => {
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.openFileDialog();
-    if (result.canceled) return;
-    try {
-      const d = JSON.parse(result.content);
-      if (d.units) { loadData(d); setCurrentFile(result.filePath); }
-      else alert("올바른 백지테스트 파일이 아닙니다.");
-    } catch { alert("잘못된 파일입니다."); }
-  };
-  const exportUnit = async (id) => {
-    const u = data.units.find((x) => x.id === id); if (!u) return;
-    const usedTags = new Set();
-    u.rows.forEach((r) => { if (r.l.tag && !NUM_TAG_SET.has(r.l.tag)) usedTags.add(r.l.tag); if (r.r.tag && !NUM_TAG_SET.has(r.r.tag)) usedTags.add(r.r.tag); });
-    const tags = (data.settings.tags || DEFAULT_TAGS).filter((t) => usedTags.has(t.v));
-    const d = { _type: "bt-units", units: [JSON.parse(JSON.stringify(u))], tags };
-    if (window.electronAPI) {
-      await window.electronAPI.exportUnit(JSON.stringify(d, null, 2), u.title);
-    }
-  };
-  const importUnits = async () => {
-    // 단원 가져오기는 메뉴에서도 호출 가능 (main.js에서 처리)
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.openFileDialog();
-    if (result.canceled) return;
-    try {
-      const d = JSON.parse(result.content);
-      if (d._type === "bt-units" && d.units) {
-        const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; });
-        if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); }
-        setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId);
-      } else { alert("단원 파일이 아닙니다."); }
-    } catch { alert("잘못된 파일입니다."); }
-  };
-  const resetAll = () => { if (confirm("초기화할까요?")) { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); } };
 
-  if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "sans-serif", color: "#999" }}>불러오는 중...</div>;
-
-  const ungrouped = data.units.filter((u) => !u.groupId || !data.groups.find((g) => g.id === u.groupId));
+  const ungroupedFiles = fileList.filter((f) => !f.group);
   const BS = { padding: "4px 9px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 10.5, cursor: "pointer", fontWeight: 500, color: "#555" };
 
-  const fontFamily = data.settings.customFont
+  const fontFamily = settings.customFont
     ? `'CustomFont','Pretendard','Malgun Gothic',sans-serif`
     : `'Pretendard','Malgun Gothic',sans-serif`;
+
+  // 폴더 미선택 시 시작 화면
+  if (!workspace) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Pretendard',sans-serif", background: "#f0f2f5" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>📝</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: "#00391e", marginBottom: 4 }}>백지테스트 메이커</div>
+        <div style={{ fontSize: 12, color: "#999", marginBottom: 20 }}>작업 폴더를 선택해서 시작하세요</div>
+        <button onClick={() => window.electronAPI?.selectFolder()} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "#ec6619", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+          폴더 열기
+        </button>
+      </div>
+    </div>
+  );
+
+  const FileItem = ({ f }) => {
+    const active = currentFile === f.path;
+    const displayName = f.name.replace(/\.(btm|json)$/, "");
+    const [menuOpen, setMenuOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+      if (!menuOpen) return;
+      const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setMenuOpen(false); };
+      document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
+    }, [menuOpen]);
+    return (
+      <div onClick={() => openFile(f.path)} style={{
+        padding: "6px 8px 6px 20px", borderRadius: 4, cursor: "pointer", marginBottom: 1,
+        background: active ? "#fff7f0" : "transparent", border: active ? "1px solid #fed7aa" : "1px solid transparent",
+        display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative",
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
+        </div>
+        <div ref={ref} style={{ position: "relative" }}>
+          <button onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 13, color: "#aaa", padding: "2px 4px" }}>⋯</button>
+          {menuOpen && (
+            <div style={{ position: "absolute", right: 0, top: "100%", background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 30, minWidth: 120 }}>
+              <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }}>📋 복제</MItem>
+              <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }}>🗑 삭제</MItem>
+              {groups.length > 0 && <>
+                <div style={{ height: 1, background: "#eee", margin: "3px 0" }} />
+                <div style={{ padding: "3px 8px", fontSize: 9.5, color: "#aaa", fontWeight: 600 }}>그룹 이동</div>
+                {f.group && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }}>미분류</MItem>}
+                {groups.filter((g) => g.name !== f.group).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }}>{g.name}</MItem>)}
+              </>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: "flex", height: "100vh", fontFamily, fontSize: 13, background: "#f0f2f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
-        ${data.settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${data.settings.customFont}');font-display:swap}` : ''}
+        ${settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${settings.customFont}');font-display:swap}` : ''}
         @page{size:A4;margin:0}
         @media print{
           html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
@@ -626,7 +712,7 @@ export default function App() {
             <span style={{ fontSize: 10.5, fontWeight: 600, color: "#7e7e7f" }}>메이커</span>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => addUnit(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>+ 단원</button>
+            <button onClick={() => addNewUnit(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>+ 단원</button>
             <button onClick={() => setAddGroupOpen(true)} style={{ padding: "6px 8px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#888" }}>+ 그룹</button>
           </div>
           {addGroupOpen && (
@@ -638,60 +724,32 @@ export default function App() {
           )}
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 6px" }}>
-          {data.groups.map((g) => {
-            const gu = data.units.filter((u) => u.groupId === g.id);
+          {groups.map((g) => {
+            const gFiles = fileList.filter((f) => f.group === g.name);
+            const collapsed = collapsedGroups.has(g.name);
             return (
-              <div key={g.id} style={{ marginBottom: 2 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 3, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.id)}>
-                  <span style={{ fontSize: 8, color: "#aaa", transform: g.collapsed ? "rotate(-90deg)" : "rotate(0)", transition: ".15s" }}>▼</span>
-                  {editGroupId === g.id ? (
-                    <input value={g.name} onChange={(e) => renameGroup(g.id, e.target.value)} onBlur={() => setEditGroupId(null)} onKeyDown={(e) => e.key === "Enter" && setEditGroupId(null)} onClick={(e) => e.stopPropagation()} autoFocus style={{ flex: 1, padding: "1px 3px", border: "1px solid #f5a855", borderRadius: 2, fontSize: 11, fontWeight: 600, outline: "none" }} />
-                  ) : (
-                    <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "#374151" }}>{g.name}</span>
-                  )}
-                  <span style={{ fontSize: 9, color: "#bbb" }}>{gu.length}</span>
-                  <button onClick={(e) => { e.stopPropagation(); setEditGroupId(g.id); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#bbb", padding: 0 }}>✎</button>
-                  <button onClick={(e) => { e.stopPropagation(); if (confirm(`"${g.name}" 삭제?`)) delGroup(g.id); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#ddd", padding: 0 }}>✕</button>
+              <div key={g.name} style={{ marginBottom: 2 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 3, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.name)}>
+                  <span style={{ fontSize: 8, color: "#aaa", transform: collapsed ? "rotate(-90deg)" : "rotate(0)", transition: ".15s" }}>▼</span>
+                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "#374151" }}>{g.name}</span>
+                  <span style={{ fontSize: 9, color: "#bbb" }}>{gFiles.length}</span>
+                  <button onClick={(e) => { e.stopPropagation(); deleteGroup(g.path); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#ddd", padding: 0 }}>✕</button>
                 </div>
-                {!g.collapsed && gu.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} onExport={() => exportUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
-                {!g.collapsed && <button onClick={() => addUnit(g.id)} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 10, color: "#bbb", cursor: "pointer", marginTop: 1, marginBottom: 3 }}>+ 단원</button>}
+                {!collapsed && gFiles.map((f) => <FileItem key={f.path} f={f} />)}
+                {!collapsed && <button onClick={() => addNewUnit(g.name)} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 10, color: "#bbb", cursor: "pointer", marginTop: 1, marginBottom: 3 }}>+ 단원</button>}
               </div>
             );
           })}
-          {ungrouped.length > 0 && (
+          {ungroupedFiles.length > 0 && (
             <div style={{ marginTop: 4 }}>
-              <div style={{ padding: "3px 5px", fontSize: 10, color: "#aaa", fontWeight: 600 }}>미분류</div>
-              {ungrouped.map((u) => <UnitItem key={u.id} u={u} active={curId === u.id} onSelect={() => setCurId(u.id)} onDup={() => dupUnit(u.id)} onDel={() => delUnit(u.id)} onExport={() => exportUnit(u.id)} groups={data.groups} onMove={(gid) => updateUnit(u.id, { groupId: gid })} />)}
+              {groups.length > 0 && <div style={{ padding: "3px 5px", fontSize: 10, color: "#aaa", fontWeight: 600 }}>미분류</div>}
+              {ungroupedFiles.map((f) => <FileItem key={f.path} f={f} />)}
             </div>
           )}
         </div>
-        <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 4, position: "relative" }}>
-          <button onClick={() => setSettingsOpen(true)} style={{ ...BS, flex: 1 }}>⚙ 설정</button>
-          <div ref={fileMenuRef} style={{ position: "relative", flex: 1 }}>
-            <button onClick={() => setFileMenuOpen(!fileMenuOpen)} style={{ ...BS, width: "100%", background: fileMenuOpen ? "#fff7f0" : "#fff" }}>📁 파일</button>
-            {fileMenuOpen && (
-              <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,.12)", padding: 6, zIndex: 50, minWidth: 190 }}>
-                <button onClick={() => { openFile(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  📂 열기<br/><span style={{ fontSize: 9.5, color: "#999" }}>저장된 파일 열기 (Ctrl+O)</span>
-                </button>
-                <button onClick={() => { saveFile(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  💾 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>{currentFile ? currentFile.split(/[/\\]/).pop() : "새 파일"} (Ctrl+S)</span>
-                </button>
-                <button onClick={() => { saveAs(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  📄 다른 이름으로 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>새 파일로 저장 (Ctrl+Shift+S)</span>
-                </button>
-                <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
-                <div style={{ padding: "4px 8px", fontSize: 9, color: "#999", fontWeight: 700, letterSpacing: 1 }}>단원 공유</div>
-                <button onClick={() => { importUnits(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  📥 단원 가져오기<br/><span style={{ fontSize: 9.5, color: "#999" }}>다른 선생님의 단원 파일 추가</span>
-                </button>
-                <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
-                <button onClick={() => { resetAll(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#ef4444" }} onMouseEnter={(e) => e.target.style.background="#fef2f2"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  ↺ 초기화
-                </button>
-              </div>
-            )}
-          </div>
+        <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 4 }}>
+          <button onClick={() => setSettingsOpen(true)} style={{ ...BS, flex: 1 }} disabled={!unit}>⚙ 설정</button>
+          <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, flex: 1 }}>📁 폴더 변경</button>
         </div>
         </>}
       </div>
@@ -702,7 +760,7 @@ export default function App() {
         <div className="no-print" style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "7px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           {unit ? (
             <>
-              <input value={unit.title} onChange={(e) => updateUnit(curId, { title: e.target.value })} style={{ fontSize: 15, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 180 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+              <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} style={{ fontSize: 15, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 180 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
               <div style={{ flex: 1 }} />
               <div style={{ display: "flex", gap: 2, background: "#f3f4f6", borderRadius: 6, padding: 2 }}>
                 {[{ k: "answer", l: "답지" }, { k: "blank", l: "시험지" }].map((v) => (
@@ -729,8 +787,8 @@ export default function App() {
           <div className="no-print" style={{ width: `${splitPct}%`, overflowY: "auto", padding: "8px 10px", background: "#fafafa" }}>
             {unit ? (
               <>
-                <EditorSideGroup side="l" label="왼쪽 (L)" color="#00391e" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={data.settings.tags} numColor={data.settings.numTagColor} />
-                <EditorSideGroup side="r" label="오른쪽 (R)" color="#ec6619" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={data.settings.tags} numColor={data.settings.numTagColor} />
+                <EditorSideGroup side="l" label="왼쪽 (L)" color="#00391e" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
+                <EditorSideGroup side="r" label="오른쪽 (R)" color="#ec6619" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
               </>
             ) : (
               <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
@@ -753,7 +811,7 @@ export default function App() {
               <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
             </div>
             <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
-              <Preview unit={unit} isBlank={previewMode === "blank"} logo={data.settings.logo} slogan={data.settings.slogan} fontFamily={fontFamily} tags={data.settings.tags} numColor={data.settings.numTagColor} />
+              <Preview unit={unit} isBlank={previewMode === "blank"} logo={settings.logo} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
             </div>
           </div>
         </div>
@@ -766,15 +824,15 @@ export default function App() {
             <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700 }}>설정</h3>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>슬로건</label>
-              <input value={data.settings.slogan || ""} onChange={(e) => setSettings({ slogan: e.target.value })} placeholder="예: 손에 잡히는 영어" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
+              <input value={settings.slogan || ""} onChange={(e) => setSettings({ slogan: e.target.value })} placeholder="예: 손에 잡히는 영어" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>로고 이미지</label>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <button onClick={handleLogo} style={{ padding: "6px 12px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11.5, cursor: "pointer" }}>이미지 선택</button>
-                {data.settings.logo && (
+                {settings.logo && (
                   <>
-                    <img src={data.settings.logo} style={{ height: 32, objectFit: "contain", borderRadius: 3, border: "1px solid #eee" }} alt="" />
+                    <img src={settings.logo} style={{ height: 32, objectFit: "contain", borderRadius: 3, border: "1px solid #eee" }} alt="" />
                     <button onClick={() => setSettings({ logo: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>삭제</button>
                   </>
                 )}
@@ -784,9 +842,9 @@ export default function App() {
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>커스텀 폰트</label>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                 <button onClick={handleFont} style={{ padding: "6px 12px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11.5, cursor: "pointer" }}>폰트 파일 선택</button>
-                {data.settings.customFont && (
+                {settings.customFont && (
                   <>
-                    <span style={{ fontSize: 11, color: "#555" }}>{data.settings.customFontName || "업로드됨"}</span>
+                    <span style={{ fontSize: 11, color: "#555" }}>{settings.customFontName || "업로드됨"}</span>
                     <button onClick={() => setSettings({ customFont: null, customFontName: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>삭제</button>
                   </>
                 )}
@@ -798,14 +856,14 @@ export default function App() {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 5 }}>숫자 태그 색상</label>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <input type="color" value={data.settings.numTagColor || DEFAULT_NUM_COLOR} onChange={(e) => setSettings({ numTagColor: e.target.value })}
+                <input type="color" value={settings.numTagColor || DEFAULT_NUM_COLOR} onChange={(e) => setSettings({ numTagColor: e.target.value })}
                   style={{ width: 30, height: 30, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer", padding: 1 }} />
                 <div style={{ display: "flex", gap: 2 }}>
                   {NUM_TAGS.slice(0, 5).map((n) => (
-                    <span key={n} style={{ display: "inline-block", padding: "1px 6px", borderRadius: 3, background: data.settings.numTagColor || DEFAULT_NUM_COLOR, color: "#fff", fontSize: 10, fontWeight: 700 }}>{n}</span>
+                    <span key={n} style={{ display: "inline-block", padding: "1px 6px", borderRadius: 3, background: settings.numTagColor || DEFAULT_NUM_COLOR, color: "#fff", fontSize: 10, fontWeight: 700 }}>{n}</span>
                   ))}
                 </div>
-                {data.settings.numTagColor && data.settings.numTagColor !== DEFAULT_NUM_COLOR && (
+                {settings.numTagColor && settings.numTagColor !== DEFAULT_NUM_COLOR && (
                   <button onClick={() => setSettings({ numTagColor: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 10 }}>초기화</button>
                 )}
               </div>
@@ -816,27 +874,27 @@ export default function App() {
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 5 }}>일반 태그 관리</label>
               <span style={{ fontSize: 10, color: "#999", display: "block", marginBottom: 5 }}>추가/삭제/색상 변경 가능</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                {(data.settings.tags || []).map((t, idx) => (
+                {(settings.tags || []).map((t, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input type="color" value={t.c} onChange={(e) => {
-                      const nTags = [...data.settings.tags];
+                      const nTags = [...settings.tags];
                       nTags[idx] = { ...nTags[idx], c: e.target.value };
                       setSettings({ tags: nTags });
                     }} style={{ width: 26, height: 26, border: "1px solid #ddd", borderRadius: 4, cursor: "pointer", padding: 1 }} />
                     <input value={t.v} onChange={(e) => {
                       const nv = e.target.value;
-                      const nTags = [...data.settings.tags];
+                      const nTags = [...settings.tags];
                       const oldV = nTags[idx].v;
                       nTags[idx] = { ...nTags[idx], v: nv };
                       setSettings({ tags: nTags });
-                      if (oldV && oldV !== nv) {
-                        setUnits((us) => us.map((u) => ({
+                      if (oldV && oldV !== nv && unit) {
+                        updateUnit((u) => ({
                           ...u, rows: u.rows.map((r) => ({
                             ...r,
                             l: r.l.tag === oldV ? { ...r.l, tag: nv } : r.l,
                             r: r.r.tag === oldV ? { ...r.r, tag: nv } : r.r,
                           }))
-                        })));
+                        }));
                       }
                     }} placeholder="태그 이름" style={{ flex: 1, padding: "4px 7px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 12, outline: "none" }} />
                     <span style={{
@@ -844,14 +902,14 @@ export default function App() {
                       background: t.c, color: t.tx, fontSize: 10, fontWeight: 700, minWidth: 30, textAlign: "center",
                     }}>{t.v || "?"}</span>
                     <button onClick={() => {
-                      const nTags = data.settings.tags.filter((_, i) => i !== idx);
+                      const nTags = settings.tags.filter((_, i) => i !== idx);
                       setSettings({ tags: nTags });
                     }} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 13, padding: "0 2px", flexShrink: 0 }}>✕</button>
                   </div>
                 ))}
               </div>
               <button onClick={() => {
-                const nTags = [...(data.settings.tags || []), { v: "새태그", c: "#6366F1", tx: "#fff" }];
+                const nTags = [...(settings.tags || []), { v: "새태그", c: "#6366F1", tx: "#fff" }];
                 setSettings({ tags: nTags });
               }} style={{ marginTop: 5, padding: "4px 10px", borderRadius: 4, border: "1px dashed #ccc", background: "none", fontSize: 11, cursor: "pointer", color: "#888" }}>+ 태그 추가</button>
             </div>

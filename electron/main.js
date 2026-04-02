@@ -4,7 +4,19 @@ const fs = require("fs");
 const os = require("os");
 
 let mainWindow;
-let currentFilePath = null;
+let workspaceDir = null;
+
+const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
+
+function loadAppSettings() {
+  try {
+    const s = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+    return s;
+  } catch { return {}; }
+}
+function saveAppSettings(s) {
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(s, null, 2), "utf-8");
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -21,9 +33,8 @@ function createWindow() {
     icon: path.join(__dirname, "../build/icon.ico"),
   });
 
-  // 개발 모드면 localhost, 아니면 빌드된 파일
   if (process.argv.includes("--dev")) {
-    mainWindow.loadURL("http://localhost:5173/blank-test-maker/");
+    mainWindow.loadURL("http://localhost:5173/");
   } else {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
@@ -33,8 +44,8 @@ function createWindow() {
 }
 
 function updateTitle() {
-  const fileName = currentFilePath ? path.basename(currentFilePath) : "새 파일";
-  mainWindow.setTitle(`${fileName} - 백지테스트 메이커`);
+  const folder = workspaceDir ? path.basename(workspaceDir) : "폴더를 선택하세요";
+  mainWindow.setTitle(`${folder} - 백지테스트 메이커`);
 }
 
 function buildMenu() {
@@ -42,13 +53,10 @@ function buildMenu() {
     {
       label: "파일",
       submenu: [
-        { label: "새 파일", accelerator: "CmdOrCtrl+N", click: () => mainWindow.webContents.send("menu-new") },
-        { label: "열기...", accelerator: "CmdOrCtrl+O", click: () => openFile() },
+        { label: "작업 폴더 열기...", accelerator: "CmdOrCtrl+O", click: () => selectFolder() },
         { type: "separator" },
-        { label: "저장", accelerator: "CmdOrCtrl+S", click: () => saveFile() },
-        { label: "다른 이름으로 저장...", accelerator: "CmdOrCtrl+Shift+S", click: () => saveFileAs() },
-        { type: "separator" },
-        { label: "단원 가져오기...", click: () => importUnits() },
+        { label: "새 단원", accelerator: "CmdOrCtrl+N", click: () => mainWindow.webContents.send("menu-new-unit") },
+        { label: "저장", accelerator: "CmdOrCtrl+S", click: () => mainWindow.webContents.send("menu-save") },
         { type: "separator" },
         { label: "종료", accelerator: "CmdOrCtrl+Q", click: () => app.quit() },
       ],
@@ -77,148 +85,131 @@ function buildMenu() {
       ],
     },
   ];
-
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-const FILE_FILTERS = [
-  { name: "백지테스트 파일", extensions: ["btm", "json"] },
-  { name: "모든 파일", extensions: ["*"] },
-];
+// 폴더 스캔: .btm 파일 목록 + 하위폴더(그룹)
+function scanFolder(dirPath) {
+  if (!dirPath || !fs.existsSync(dirPath)) return { files: [], groups: [] };
+  const files = [];
+  const groups = [];
 
-const UNIT_FILTERS = [
-  { name: "단원 파일", extensions: ["btm", "json"] },
-  { name: "모든 파일", extensions: ["*"] },
-];
-
-async function openFile(filePath) {
-  if (!filePath) {
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "파일 열기",
-      filters: FILE_FILTERS,
-      properties: ["openFile"],
-    });
-    if (result.canceled || !result.filePaths.length) return;
-    filePath = result.filePaths[0];
-  }
-
-  try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    const data = JSON.parse(content);
-    if (!data.units) {
-      dialog.showErrorBox("오류", "올바른 백지테스트 파일이 아닙니다.");
-      return;
+  // 루트 .btm 파일
+  const rootEntries = fs.readdirSync(dirPath, { withFileTypes: true });
+  for (const e of rootEntries) {
+    if (e.isFile() && (e.name.endsWith(".btm") || e.name.endsWith(".json"))) {
+      files.push({ name: e.name, path: path.join(dirPath, e.name), group: null });
     }
-    currentFilePath = filePath;
-    updateTitle();
-    mainWindow.webContents.send("file-opened", { data, filePath });
-  } catch (err) {
-    dialog.showErrorBox("오류", "파일을 열 수 없습니다: " + err.message);
+    if (e.isDirectory() && !e.name.startsWith(".")) {
+      const groupName = e.name;
+      const groupPath = path.join(dirPath, e.name);
+      groups.push({ name: groupName, path: groupPath });
+      // 하위폴더 내 .btm 파일
+      try {
+        const subEntries = fs.readdirSync(groupPath, { withFileTypes: true });
+        for (const se of subEntries) {
+          if (se.isFile() && (se.name.endsWith(".btm") || se.name.endsWith(".json"))) {
+            files.push({ name: se.name, path: path.join(groupPath, se.name), group: groupName });
+          }
+        }
+      } catch {}
+    }
   }
+  return { files, groups };
 }
 
-async function saveFile() {
-  if (!currentFilePath) {
-    return saveFileAs();
-  }
-  mainWindow.webContents.send("request-save", { filePath: currentFilePath });
-}
-
-async function saveFileAs() {
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: "다른 이름으로 저장",
-    filters: FILE_FILTERS,
-    defaultPath: currentFilePath || "백지테스트.btm",
-  });
-  if (result.canceled) return;
-  currentFilePath = result.filePath;
-  updateTitle();
-  mainWindow.webContents.send("request-save", { filePath: result.filePath });
-}
-
-async function importUnits() {
+async function selectFolder() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "단원 가져오기",
-    filters: UNIT_FILTERS,
-    properties: ["openFile", "multiSelections"],
+    title: "작업 폴더 선택",
+    properties: ["openDirectory"],
   });
   if (result.canceled || !result.filePaths.length) return;
-
-  const units = [];
-  for (const fp of result.filePaths) {
-    try {
-      const content = fs.readFileSync(fp, "utf-8");
-      const d = JSON.parse(content);
-      if (d._type === "bt-units" && d.units) {
-        units.push(d);
-      } else {
-        dialog.showErrorBox("오류", `단원 파일이 아닙니다: ${path.basename(fp)}`);
-      }
-    } catch {
-      dialog.showErrorBox("오류", `파일을 읽을 수 없습니다: ${path.basename(fp)}`);
-    }
-  }
-  if (units.length) {
-    mainWindow.webContents.send("units-imported", units);
-  }
+  workspaceDir = result.filePaths[0];
+  saveAppSettings({ ...loadAppSettings(), lastFolder: workspaceDir });
+  updateTitle();
+  const scan = scanFolder(workspaceDir);
+  mainWindow.webContents.send("folder-opened", { dirPath: workspaceDir, ...scan });
 }
 
 // IPC handlers
-ipcMain.handle("save-file", async (event, { filePath, content }) => {
+ipcMain.handle("select-folder", async () => {
+  await selectFolder();
+});
+
+ipcMain.handle("scan-folder", (event, dirPath) => {
+  return scanFolder(dirPath || workspaceDir);
+});
+
+ipcMain.handle("read-file", (event, filePath) => {
   try {
+    const content = fs.readFileSync(filePath, "utf-8");
+    return { success: true, content };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("write-file", (event, { filePath, content }) => {
+  try {
+    // 디렉토리가 없으면 생성
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filePath, content, "utf-8");
-    currentFilePath = filePath;
-    updateTitle();
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("save-file-dialog", async () => {
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: "다른 이름으로 저장",
-    filters: FILE_FILTERS,
-    defaultPath: currentFilePath || "백지테스트.btm",
-  });
-  if (result.canceled) return { canceled: true };
-  return { canceled: false, filePath: result.filePath };
-});
-
-ipcMain.handle("open-file-dialog", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    title: "파일 열기",
-    filters: FILE_FILTERS,
-    properties: ["openFile"],
-  });
-  if (result.canceled || !result.filePaths.length) return { canceled: true };
-  const filePath = result.filePaths[0];
+ipcMain.handle("delete-file", (event, filePath) => {
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    currentFilePath = filePath;
-    updateTitle();
-    return { canceled: false, filePath, content };
-  } catch (err) {
-    return { canceled: true, error: err.message };
-  }
-});
-
-ipcMain.handle("export-unit", async (event, { content, defaultName }) => {
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: "단원 내보내기",
-    filters: UNIT_FILTERS,
-    defaultPath: `${defaultName}.btm`,
-  });
-  if (result.canceled) return { canceled: true };
-  try {
-    fs.writeFileSync(result.filePath, content, "utf-8");
-    return { success: true, filePath: result.filePath };
+    fs.unlinkSync(filePath);
+    return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
 });
 
-ipcMain.handle("get-current-file", () => currentFilePath);
+ipcMain.handle("rename-file", (event, { oldPath, newPath }) => {
+  try {
+    const dir = path.dirname(newPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.renameSync(oldPath, newPath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("create-group-folder", (event, folderPath) => {
+  try {
+    if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("delete-group-folder", (event, folderPath) => {
+  try {
+    // 폴더 내 파일이 있으면 루트로 이동
+    const entries = fs.readdirSync(folderPath, { withFileTypes: true });
+    const parentDir = path.dirname(folderPath);
+    for (const e of entries) {
+      if (e.isFile()) {
+        fs.renameSync(path.join(folderPath, e.name), path.join(parentDir, e.name));
+      }
+    }
+    fs.rmdirSync(folderPath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle("get-app-settings", () => loadAppSettings());
+
+ipcMain.handle("get-workspace", () => workspaceDir);
 
 ipcMain.handle("print-preview", async () => {
   const pdfData = await mainWindow.webContents.printToPDF({
@@ -233,10 +224,7 @@ ipcMain.handle("print-preview", async () => {
     width: 900,
     height: 750,
     title: "인쇄 미리보기",
-    webPreferences: {
-      contextIsolation: true,
-      plugins: true,
-    },
+    webPreferences: { contextIsolation: true, plugins: true },
   });
   previewWin.setMenuBarVisibility(false);
   previewWin.loadFile(tmpPath);
@@ -248,6 +236,17 @@ ipcMain.handle("print-preview", async () => {
 app.whenReady().then(() => {
   createWindow();
 
+  // 마지막 작업 폴더 복원
+  const settings = loadAppSettings();
+  if (settings.lastFolder && fs.existsSync(settings.lastFolder)) {
+    workspaceDir = settings.lastFolder;
+    updateTitle();
+    mainWindow.webContents.on("did-finish-load", () => {
+      const scan = scanFolder(workspaceDir);
+      mainWindow.webContents.send("folder-opened", { dirPath: workspaceDir, ...scan });
+    });
+  }
+
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -255,22 +254,4 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
-});
-
-// 파일 더블클릭으로 열기 (Windows)
-app.on("second-instance", (event, argv) => {
-  const filePath = argv.find((a) => a.endsWith(".btm") || a.endsWith(".json"));
-  if (filePath && mainWindow) {
-    openFile(filePath);
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-  }
-});
-
-// 파일 더블클릭으로 열기 (macOS)
-app.on("open-file", (event, filePath) => {
-  event.preventDefault();
-  if (mainWindow) {
-    openFile(filePath);
-  }
 });

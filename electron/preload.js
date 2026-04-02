@@ -1,18 +1,27 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  // 파일 저장
-  saveFile: (filePath, content) => ipcRenderer.invoke("save-file", { filePath, content }),
-  saveFileDialog: () => ipcRenderer.invoke("save-file-dialog"),
-  openFileDialog: () => ipcRenderer.invoke("open-file-dialog"),
-  exportUnit: (content, defaultName) => ipcRenderer.invoke("export-unit", { content, defaultName }),
-  getCurrentFile: () => ipcRenderer.invoke("get-current-file"),
+  // 폴더
+  selectFolder: () => ipcRenderer.invoke("select-folder"),
+  scanFolder: (dirPath) => ipcRenderer.invoke("scan-folder", dirPath),
+  getWorkspace: () => ipcRenderer.invoke("get-workspace"),
+  getAppSettings: () => ipcRenderer.invoke("get-app-settings"),
+
+  // 파일 CRUD
+  readFile: (filePath) => ipcRenderer.invoke("read-file", filePath),
+  writeFile: (filePath, content) => ipcRenderer.invoke("write-file", { filePath, content }),
+  deleteFile: (filePath) => ipcRenderer.invoke("delete-file", filePath),
+  renameFile: (oldPath, newPath) => ipcRenderer.invoke("rename-file", { oldPath, newPath }),
+
+  // 그룹(폴더) 관리
+  createGroupFolder: (folderPath) => ipcRenderer.invoke("create-group-folder", folderPath),
+  deleteGroupFolder: (folderPath) => ipcRenderer.invoke("delete-group-folder", folderPath),
+
+  // 인쇄
   printPreview: () => ipcRenderer.invoke("print-preview"),
 
-
-  // 메뉴에서 보내는 이벤트 수신
-  onMenuNew: (cb) => ipcRenderer.on("menu-new", cb),
-  onFileOpened: (cb) => ipcRenderer.on("file-opened", (e, payload) => cb(payload)),
-  onRequestSave: (cb) => ipcRenderer.on("request-save", (e, payload) => cb(payload)),
-  onUnitsImported: (cb) => ipcRenderer.on("units-imported", (e, payload) => cb(payload)),
+  // 메인 프로세스에서 보내는 이벤트
+  onFolderOpened: (cb) => ipcRenderer.on("folder-opened", (e, payload) => cb(payload)),
+  onMenuNewUnit: (cb) => ipcRenderer.on("menu-new-unit", cb),
+  onMenuSave: (cb) => ipcRenderer.on("menu-save", cb),
 });
