@@ -484,7 +484,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const [inlineAddGroup, setInlineAddGroup] = useState(null);
   const [inlineAddName, setInlineAddName] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [editSide, setEditSide] = useState("l");
+  const [previewMode, setPreviewMode] = useState("answer"); // "answer" | "worksheet"
+  const col1Ref = useRef(null);
+  const col2Ref = useRef(null);
+  const [fullPreview, setFullPreview] = useState(null); // null | "answer" | "blank"
   const [printZoom, setPrintZoom] = useState(100);
   const editorScrollRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -1023,9 +1026,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily, fontSize: 15, background: "#f0f2f5" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", fontFamily, fontSize: 15, background: "#f0f2f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
+        html,body{margin:0;padding:0;height:100%;overflow:hidden}
         @page{size:A4;margin:0}
         @media print{
           html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
@@ -1131,47 +1135,76 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           </div>
 
           {/* 편집 메인 — 3열 (편집 | ANSWER | WORKSHEET) */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
             {/* 3열 에디터 */}
             <div ref={editorScrollRef} style={{ flex: 1, overflowY: "auto", background: "#fafafa" }}>
               {unit ? (
                 <div>
                   {/* 단원명 + 열 헤더 */}
                   <div style={{ position: "sticky", top: 0, zIndex: 10 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 36, background: "#f5f5f5", borderBottom: "1px solid #e5e7eb" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#aaa", flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}>단원명</span>
-                    <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })}
-                      style={{ flex: 1, fontSize: 14, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", color: "#1f2937", borderBottom: "2px solid transparent" }}
-                      onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }}
-                      onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+                  {/* 1행: 단원명 + A4 미리보기 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 42, background: "#fff", borderBottom: "1px solid #e5e7eb" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#ec6619", flexShrink: 0, letterSpacing: 0.5 }}>단원명</span>
+                    <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="단원명을 입력하세요"
+                      style={{ flex: 1, fontSize: 16, fontWeight: 800, border: "none", outline: "none", background: "transparent", padding: "4px 8px", color: "#111", borderBottom: "2px solid #eee", borderRadius: 0 }}
+                      onFocus={(e) => { e.target.style.borderBottomColor = "#ec6619"; }}
+                      onBlur={(e) => { e.target.style.borderBottomColor = "#eee"; }} />
+                    <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#888", flexShrink: 0 }}>A4 미리보기</button>
                   </div>
-                  <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e5e7eb", height: 28, alignItems: "center" }}>
-                    <div style={{ flex: 1, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Edit</div>
-                    <div style={{ width: 684, flexShrink: 0, textAlign: "center", fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>Preview</div>
-                  </div>
-                  {/* 왼쪽/오른쪽 탭 + ANSWER/WORKSHEET */}
-                  <div style={{ display: "flex", alignItems: "center", padding: "0 12px", height: 32, background: "#fafafa", borderBottom: "1px solid #e5e7eb" }}>
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                      <button onClick={() => { setEditSide("l"); editorScrollRef.current?.scrollTo(0, 0); }} style={{ padding: "3px 12px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: editSide === "l" ? "#00391e" : "transparent", color: editSide === "l" ? "#fff" : "#aaa" }}>왼쪽</button>
-                      <button onClick={() => { setEditSide("r"); editorScrollRef.current?.scrollTo(0, 0); }} style={{ padding: "3px 12px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: editSide === "r" ? "#ec6619" : "transparent", color: editSide === "r" ? "#fff" : "#aaa" }}>오른쪽</button>
+                  {/* 2행: Edit (이동 버튼) | Preview (A/W) */}
+                  <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e5e7eb", height: 30, alignItems: "center" }}>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Edit</span>
                     </div>
-                    <div style={{ width: 684, flexShrink: 0, display: "flex", alignItems: "center", paddingLeft: 2, boxSizing: "border-box" }}>
-                      <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 600, color: "#00391e" }}>ANSWER <span style={{ fontWeight: 400, color: "#999" }}>암기/채점용</span></div>
-                      <div style={{ width: 1, height: 12, background: "#ddd" }} />
-                      <div style={{ flex: 1, textAlign: "center", fontSize: 11, fontWeight: 600, color: "#ec6619" }}>WORKSHEET <span style={{ fontWeight: 400, color: "#999" }}>시험용</span></div>
+                    <div style={{ width: 684, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Preview</span>
+                      <div style={{ display: "flex", gap: 1, background: "#e0e0e0", borderRadius: 4, padding: 1 }}>
+                        <button onClick={() => setPreviewMode("answer")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "answer" ? "#fff" : "transparent", color: previewMode === "answer" ? "#00391e" : "#999" }}>A</button>
+                        <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "worksheet" ? "#fff" : "transparent", color: previewMode === "worksheet" ? "#ec6619" : "#999" }}>W</button>
+                      </div>
                     </div>
                   </div>
+                  </div>
+                  {/* 1열 (왼쪽) 30행 */}
+                  <div ref={col1Ref} style={{ display: "flex", alignItems: "center", padding: "8px 12px 4px" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ padding: "2px 10px", borderRadius: 4, background: "#00391e", color: "#fff", fontSize: 11, fontWeight: 700 }}>1열</span>
+                    </div>
+                    <div style={{ width: 684, flexShrink: 0, display: "flex", alignItems: "center", boxSizing: "border-box" }}>
+                      <div style={{ flex: 1, textAlign: "center", fontSize: 10, fontWeight: 600, color: "#999" }}>1열</div>
+                      <div style={{ width: 1, height: 8, background: "#ddd" }} />
+                      <div style={{ flex: 1, textAlign: "center", fontSize: 10, fontWeight: 600, color: "#999" }}>2열</div>
+                    </div>
                   </div>
                   {unit.rows.map((row, i) => (
-                    <div key={`${editSide}-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
+                    <div key={`l-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <EditorCell side={editSide} cell={row[editSide]} upd={(f, v) => updateCellField(row.id, editSide, f, v)} onUp={() => moveCellContent(row.id, editSide, -1)} onDown={() => moveCellContent(row.id, editSide, 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                        <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
                       </div>
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row[editSide]} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
+                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "1px solid #e5e7eb", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row[editSide]} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
+                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} />
+                      </div>
+                    </div>
+                  ))}
+                  {/* 2열 (오른쪽) 30행 */}
+                  <div ref={col2Ref} style={{ display: "flex", alignItems: "center", padding: "14px 12px 4px" }}>
+                    <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+                    <span style={{ padding: "2px 10px", borderRadius: 4, background: "#ec6619", color: "#fff", fontSize: 11, fontWeight: 700, margin: "0 6px" }}>2열</span>
+                    <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+                  </div>
+                  {unit.rows.map((row, i) => (
+                    <div key={`r-${row.id}`} data-row style={{ display: "flex", marginBottom: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                      </div>
+                      <div style={{ width: 342, flexShrink: 0, borderLeft: "2px solid #ccc", boxSizing: "border-box" }}>
+                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} />
+                      </div>
+                      <div style={{ width: 342, flexShrink: 0, borderLeft: "1px solid #e5e7eb", boxSizing: "border-box" }}>
+                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                     </div>
                   ))}
@@ -1266,6 +1299,20 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
               <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} thumbW={Math.round(370 * printZoom / 100)} />
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* A4 Full Preview Modal */}
+      {fullPreview && unit && (
+        <div tabIndex={-1} autoFocus onKeyDown={(e) => { if (e.key === "Escape") setFullPreview(null); }} ref={(el) => el?.focus()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, outline: "none" }} onClick={() => setFullPreview(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", maxHeight: "95vh", overflowY: "auto", borderRadius: 8, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+            <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", justifyContent: "center", gap: 6, padding: "8px 0", background: "rgba(0,0,0,.4)", borderRadius: "8px 8px 0 0" }}>
+              <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: fullPreview === "answer" ? "#fff" : "rgba(255,255,255,.2)", color: fullPreview === "answer" ? "#00391e" : "#fff" }}>답지 (ANSWER)</button>
+              <button onClick={() => setFullPreview("blank")} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: fullPreview === "blank" ? "#fff" : "rgba(255,255,255,.2)", color: fullPreview === "blank" ? "#ec6619" : "#fff" }}>시험지 (WORKSHEET)</button>
+              <button onClick={() => setFullPreview(null)} style={{ padding: "4px 10px", borderRadius: 4, border: "none", fontSize: 14, cursor: "pointer", background: "rgba(255,255,255,.2)", color: "#fff", marginLeft: 8 }}>✕</button>
+            </div>
+            <Preview unit={unit} isBlank={fullPreview === "blank"} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
           </div>
         </div>
       )}
