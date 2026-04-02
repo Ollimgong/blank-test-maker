@@ -109,23 +109,9 @@ const RELATIVE_ROWS = [
 const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
 const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
-// 들여쓰기 부모 찾기: 위로 올라가며 나보다 indent가 작은 첫 번째 행 반환
-function findParentGhosts(rows, idx, side) {
-  const cell = rows[idx][side];
-  const indLv = cell.indent || 0;
-  if (indLv === 0) return { ghostTag: null, ghostMark: null };
-  let parent = null;
-  for (let k = idx - 1; k >= 0; k--) {
-    if ((rows[k][side].indent || 0) < indLv) { parent = rows[k][side]; break; }
-  }
-  return {
-    ghostTag: (indLv >= 1 && !cell.tag) ? (parent?.tag || null) : null,
-    ghostMark: (indLv >= 2 && !cell.mark) ? (parent?.mark || null) : null,
-  };
-}
 
 /* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
-function CellProps({ cell, upd, tags, numColor, ghostTag, ghostMark }) {
+function CellProps({ cell, upd, tags, numColor }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const nc = numColor || DEFAULT_NUM_COLOR;
@@ -154,18 +140,12 @@ function CellProps({ cell, upd, tags, numColor, ghostTag, ghostMark }) {
         fontSize: 8, fontWeight: 600, flexShrink: 0, padding: 0, lineHeight: 1,
         background: open ? "#f0f0f0" : "transparent", color: "#aaa",
       }}>{open ? "▲" : "▼"}</button>
-      {/* 태그 (실제 or ghost) */}
-      {cell.tag ? (
+      {cell.tag && (
         <span onClick={() => setOpen(!open)} style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.tag}</span>
-      ) : ghostTag ? (
-        <span style={{ padding: "1px 6px", borderRadius: 3, fontSize: 10, fontWeight: 700, flexShrink: 0, visibility: "hidden" }}>{ghostTag}</span>
-      ) : null}
-      {/* 마커 (실제 or ghost) */}
-      {cell.mark ? (
+      )}
+      {cell.mark && (
         <span onClick={() => setOpen(!open)} style={{ padding: "1px 5px", borderRadius: 3, background: "#f0e6dc", color: "#7a3d10", fontSize: 9.5, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.mark}</span>
-      ) : ghostMark ? (
-        <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9.5, fontWeight: 700, flexShrink: 0, visibility: "hidden" }}>{ghostMark}</span>
-      ) : null}
+      )}
       {open && (
         <div style={{
           position: "absolute", top: "110%", left: 0, zIndex: 50,
@@ -216,7 +196,6 @@ function CellArrows({ onUp, onDown, first, last }) {
 function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows }) {
   const indLv = cell.indent || 0;
   const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
-  const { ghostTag, ghostMark } = rows ? findParentGhosts(rows, idx, side) : { ghostTag: null, ghostMark: null };
   const TB = (active, onClick, title, children, color, textColor) => (
     <button onClick={onClick} title={title} style={{
       width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
@@ -227,20 +206,21 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
   );
   return (
     <div style={{
-      background: cell.hdr ? "#e8efe9" : isEmpty ? "#f3f4f6" : "#fff", padding: "3px 4px",
+      background: cell.hdr ? "#e8efe9" : "#fff", padding: "3px 4px",
       display: "flex", alignItems: "center", gap: 3,
       borderLeft: cell.hdr ? "3px solid #00391e" : "3px solid transparent",
       opacity: 1,
     }}>
       <span style={{ fontSize: 8, color: "#bbb", fontWeight: 600, width: 14, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
-      <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} ghostTag={ghostTag} ghostMark={ghostMark} />
+      {indLv > 0 && <div style={{ width: indLv * 16, flexShrink: 0 }} />}
+      <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
       <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
         onKeyDown={(e) => {
           if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
           if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelector("input"); if (next) next.focus(); }
           if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
         }}
-        style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: isEmpty ? "#eee" : "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+        style={{ flex: 1, padding: "2px 5px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 11.5, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
       <div className="ec-hover" style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
         {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#00391e", "#fff")}
         {TB(cell.bold, () => upd("bold", !cell.bold), "굵게", "B")}
@@ -326,23 +306,13 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
                 </div>
               );
               const indLv = cell.indent || 0;
-              const { ghostTag, ghostMark } = findParentGhosts(unit.rows, i, side);
               return (
-                <div style={{ ...CELL_STYLE, padding: "0 10px", background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
-                  {ghostTag && !cell.tag && (
-                    <span style={{
-                      display: "inline-block", padding: "1px 7px", borderRadius: 3,
-                      fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px", visibility: "hidden",
-                    }}>{ghostTag}</span>
-                  )}
+                <div style={{ ...CELL_STYLE, padding: `0 10px 0 ${10 + indLv * 16}px`, background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
                   {cell.tag && (
                     <span style={{
                       display: "inline-block", padding: "1px 7px", borderRadius: 3,
                       background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px",
                     }}>{cell.tag}</span>
-                  )}
-                  {ghostMark && !cell.mark && (
-                    <span style={{ fontSize: 11, fontWeight: 600, flexShrink: 0, visibility: "hidden" }}>{ghostMark}</span>
                   )}
                   {cell.mark && (
                     <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.mark}</span>
@@ -378,28 +348,24 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
 }
 
 /* ═══════ InlinePreviewCell — 편집 행과 나란히 보여주는 셀 미리보기 ═══════ */
-function InlinePreviewCell({ cell, isBlank, tags, numColor, idx, rows, side }) {
+function InlinePreviewCell({ cell, isBlank, tags, numColor }) {
   const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
   const show = !isBlank || cell.vis;
   const tc = tagColor(cell.tag, tags, numColor);
-  const { ghostTag, ghostMark } = rows ? findParentGhosts(rows, idx, side) : { ghostTag: null, ghostMark: null };
+  const indLv = cell.indent || 0;
   if (cell.hdr) return (
     <div style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 8px", background: "#e8efe9", fontWeight: 800, fontSize: 11, color: "#00391e", letterSpacing: 1.5, overflow: "hidden" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
     </div>
   );
   return (
-    <div style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: "0 8px", background: isEmpty ? "#f8f8f8" : "#fff", overflow: "hidden" }}>
-      {cell.tag ? (
+    <div style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: `0 8px 0 ${8 + indLv * 16}px`, background: isEmpty ? "#f8f8f8" : "#fff", overflow: "hidden" }}>
+      {cell.tag && (
         <span style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
-      ) : ghostTag ? (
-        <span style={{ padding: "1px 6px", borderRadius: 3, fontSize: 9, fontWeight: 700, flexShrink: 0, visibility: "hidden" }}>{ghostTag}</span>
-      ) : null}
-      {cell.mark ? (
+      )}
+      {cell.mark && (
         <span style={{ fontSize: 10, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.mark}</span>
-      ) : ghostMark ? (
-        <span style={{ fontSize: 10, fontWeight: 600, flexShrink: 0, visibility: "hidden" }}>{ghostMark}</span>
-      ) : null}
+      )}
       {show && cell.text ? (
         <span style={{ fontSize: 11, color: "#1f2937", fontWeight: cell.bold ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: cell.bold ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa" }}>{cell.text}</span>
       ) : (!show && cell.text) ? (
@@ -1037,10 +1003,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                         <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
                       </div>
                       <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="l" />
+                        <InlinePreviewCell cell={row.l} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                       <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="l" />
+                        <InlinePreviewCell cell={row.l} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                     </div>
                   ))}
@@ -1057,10 +1023,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                         <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
                       </div>
                       <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="r" />
+                        <InlinePreviewCell cell={row.r} isBlank={false} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                       <div style={{ flex: 2, borderLeft: "1px solid #e5e7eb" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} side="r" />
+                        <InlinePreviewCell cell={row.r} isBlank={true} tags={settings.tags} numColor={settings.numTagColor} />
                       </div>
                     </div>
                   ))}
