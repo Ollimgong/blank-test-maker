@@ -381,7 +381,7 @@ function MItem({ onClick, children }) {
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
-function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, numColor }) {
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, numColor, zoom = 100 }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(600);
   useEffect(() => {
@@ -411,7 +411,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily,
   });
 
   const gap = 10;
-  const thumbW = Math.min((containerW - gap * 3) / 2, 370);
+  const thumbW = Math.min((containerW - gap * 3) / 2, 370) * zoom / 100;
   const scale = thumbW / 740;
   const thumbH = 1046 * scale;
 
@@ -488,6 +488,7 @@ export default function App() {
   const [newGrp, setNewGrp] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewZoom, setPreviewZoom] = useState(100);
+  const [printZoom, setPrintZoom] = useState(100);
   const [splitPct, setSplitPct] = useState(50);
   const splitDragging = useRef(false);
   const splitContainerRef = useRef(null);
@@ -1028,8 +1029,8 @@ export default function App() {
               <div className="no-print" onMouseDown={() => { splitDragging.current = true; }} style={{ width: 6, cursor: "col-resize", background: "#e5e7eb", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}>
                 <div style={{ width: 2, height: 32, borderRadius: 1, background: "#aaa" }} />
               </div>
-              <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
-                <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
+              <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPreviewZoom(z => Math.max(30, Math.min(150, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "safe center", padding: "8px 8px" }}>
+                <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top left", width: 740 * previewZoom / 100, height: 1046 * previewZoom / 100, flexShrink: 0 }}>
                   <Preview unit={unit} isBlank={previewMode === "blank"} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
                 </div>
               </div>
@@ -1109,8 +1110,8 @@ export default function App() {
                 {printing ? "처리 중..." : "🖨 인쇄"}
               </button>
             </div>
-            <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
-              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
+            <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} zoom={printZoom} />
             </div>
           </div>
         </div>
