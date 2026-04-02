@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import logoImg from "./assets/logo.png";
 
 /* ═══════ helpers ═══════ */
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -105,7 +106,7 @@ const RELATIVE_ROWS = [
   mk({ t: "예문", x: "This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
 ];
 
-const DEFAULT_SETTINGS = { logo: null, slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS };
+const DEFAULT_SETTINGS = { slogan: "손에 잡히는 영어", tags: DEFAULT_TAGS };
 const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
 /* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
@@ -264,7 +265,7 @@ const CELL_STYLE = {
 };
 const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" };
 
-function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor, printId }) {
+function Preview({ unit, isBlank, slogan, fontFamily, tags, numColor, printId }) {
   if (!unit) return <div style={{ padding: 40, color: "#bbb", textAlign: "center", fontSize: 13 }}>단원을 선택하세요</div>;
   return (
     <div id={printId || "print-wrapper"}>
@@ -366,11 +367,9 @@ function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor, prin
         {/* Spacer to push footer down */}
         <div style={{ flex: 1 }} />
         {/* Footer: logo center */}
-        {logo && (
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: -4 }}>
-            <img src={logo} style={{ height: 48, objectFit: "contain" }} alt="" />
-          </div>
-        )}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: -4 }}>
+          <img src={logoImg} style={{ height: 48, objectFit: "contain" }} alt="" />
+        </div>
       </div>
     </div>
   );
@@ -418,7 +417,7 @@ function MItem({ onClick, children }) {
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
-function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, logo, slogan, tags, numColor }) {
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, slogan, tags, numColor }) {
   const containerRef = useRef(null);
   const [containerW, setContainerW] = useState(600);
   useEffect(() => {
@@ -465,7 +464,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily,
       {/* 썸네일 */}
       <div onClick={() => togglePrintCheck(p.key)} style={{ position: "relative", cursor: "pointer", width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
         <div id={`thumb-${p.key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
-          <Preview unit={p.unit} isBlank={p.mode === "blank"} logo={logo} slogan={slogan} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${p.key}`} />
+          <Preview unit={p.unit} isBlank={p.mode === "blank"} slogan={slogan} fontFamily={fontFamily} tags={tags} numColor={numColor} printId={`pv-${p.key}`} />
         </div>
       </div>
     </div>
@@ -547,7 +546,7 @@ export default function App() {
       us.tags = us.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
       // 전역 설정이 기본값이면 파일의 설정으로 덮어씀
       setSettingsState((prev) => {
-        const isDefault = !prev.logo && prev.slogan === DEFAULT_SETTINGS.slogan && !prev.customFont;
+        const isDefault = prev.slogan === DEFAULT_SETTINGS.slogan;
         return isDefault ? { ...prev, ...us } : prev;
       });
       delete p.settings;
@@ -803,15 +802,11 @@ export default function App() {
     return { ...u, rows: rs };
   });
 
-  const handleLogo = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ logo: ev.target.result }); r.readAsDataURL(f); }; i.click(); };
-  const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
 
   const ungroupedFiles = fileList.filter((f) => !f.group);
   const BS = { padding: "4px 9px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 10.5, cursor: "pointer", fontWeight: 500, color: "#555" };
 
-  const fontFamily = settings.customFont
-    ? `'CustomFont','Pretendard','Malgun Gothic',sans-serif`
-    : `'Pretendard','Malgun Gothic',sans-serif`;
+  const fontFamily = `'Pretendard','Malgun Gothic',sans-serif`;
 
   // 폴더 미선택 시 시작 화면
   if (!workspace) return (
@@ -869,7 +864,6 @@ export default function App() {
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily, fontSize: 13, background: "#f0f2f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
-        ${settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${settings.customFont}');font-display:swap}` : ''}
         @page{size:A4;margin:0}
         @media print{
           html,body{height:auto!important;overflow:visible!important;margin:0!important;padding:0!important;width:210mm!important;height:297mm!important}
@@ -1000,7 +994,7 @@ export default function App() {
               </div>
               <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
                 <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
-                  <Preview unit={unit} isBlank={previewMode === "blank"} logo={settings.logo} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
+                  <Preview unit={unit} isBlank={previewMode === "blank"} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
                 </div>
               </div>
             </div>
@@ -1075,7 +1069,7 @@ export default function App() {
               </button>
             </div>
             <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
-              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} logo={settings.logo} slogan={settings.slogan} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} slogan={settings.slogan} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
             </div>
           </div>
         </div>
@@ -1089,31 +1083,6 @@ export default function App() {
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>슬로건</label>
               <input value={settings.slogan || ""} onChange={(e) => setSettings({ slogan: e.target.value })} placeholder="예: 손에 잡히는 영어" style={{ width: "100%", padding: "7px 9px", border: "1px solid #d1d5db", borderRadius: 5, fontSize: 12.5, outline: "none", boxSizing: "border-box" }} />
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>로고 이미지</label>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <button onClick={handleLogo} style={{ padding: "6px 12px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11.5, cursor: "pointer" }}>이미지 선택</button>
-                {settings.logo && (
-                  <>
-                    <img src={settings.logo} style={{ height: 32, objectFit: "contain", borderRadius: 3, border: "1px solid #eee" }} alt="" />
-                    <button onClick={() => setSettings({ logo: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>삭제</button>
-                  </>
-                )}
-              </div>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11.5, fontWeight: 600, color: "#374151", display: "block", marginBottom: 3 }}>커스텀 폰트</label>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <button onClick={handleFont} style={{ padding: "6px 12px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11.5, cursor: "pointer" }}>폰트 파일 선택</button>
-                {settings.customFont && (
-                  <>
-                    <span style={{ fontSize: 11, color: "#555" }}>{settings.customFontName || "업로드됨"}</span>
-                    <button onClick={() => setSettings({ customFont: null, customFontName: null })} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 11 }}>삭제</button>
-                  </>
-                )}
-              </div>
-              <span style={{ fontSize: 10, color: "#999", marginTop: 2, display: "block" }}>woff2, woff, ttf, otf 지원 (기본: Pretendard)</span>
             </div>
 
             {/* ── 숫자 태그 색상 ── */}
