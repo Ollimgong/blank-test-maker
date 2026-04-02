@@ -211,12 +211,26 @@ ipcMain.handle("get-app-settings", () => loadAppSettings());
 
 ipcMain.handle("get-workspace", () => workspaceDir);
 
-ipcMain.handle("print-preview", async () => {
-  const pdfData = await mainWindow.webContents.printToPDF({
+ipcMain.handle("print-preview", async (event, { html }) => {
+  // HTML을 임시 파일로 저장 후 로드
+  const tmpHtml = path.join(os.tmpdir(), `bt-print-${Date.now()}.html`);
+  fs.writeFileSync(tmpHtml, html, "utf-8");
+  const printWin = new BrowserWindow({
+    show: false,
+    width: 800,
+    height: 600,
+    webPreferences: { contextIsolation: true },
+  });
+  await printWin.loadFile(tmpHtml);
+  // 폰트/렌더링 대기
+  await new Promise((r) => setTimeout(r, 1500));
+  const pdfData = await printWin.webContents.printToPDF({
     pageSize: "A4",
     printBackground: true,
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
   });
+  printWin.destroy();
+  try { fs.unlinkSync(tmpHtml); } catch {}
   const tmpPath = path.join(os.tmpdir(), `bt-preview-${Date.now()}.pdf`);
   fs.writeFileSync(tmpPath, pdfData);
   const previewWin = new BrowserWindow({

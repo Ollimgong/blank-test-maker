@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   deleteGroupFolder: (folderPath) => ipcRenderer.invoke("delete-group-folder", folderPath),
 
   // 인쇄
-  printPreview: () => ipcRenderer.invoke("print-preview"),
+  printPreview: (html) => ipcRenderer.invoke("print-preview", { html }),
 
   // 메인 프로세스에서 보내는 이벤트
   onFolderOpened: (cb) => ipcRenderer.on("folder-opened", (e, payload) => cb(payload)),

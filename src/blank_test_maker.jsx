@@ -264,11 +264,11 @@ const CELL_STYLE = {
 };
 const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" };
 
-function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor }) {
+function Preview({ unit, isBlank, logo, slogan, fontFamily, tags, numColor, printId }) {
   if (!unit) return <div style={{ padding: 40, color: "#bbb", textAlign: "center", fontSize: 13 }}>단원을 선택하세요</div>;
   return (
-    <div id="print-wrapper">
-      <div id="print-area" style={{
+    <div id={printId || "print-wrapper"}>
+      <div id={printId ? undefined : "print-area"} style={{
         padding: "20px 28px 20px", width: 740, height: 1046, boxSizing: "border-box",
         fontFamily: fontFamily || "'Pretendard','Malgun Gothic',sans-serif",
         background: "#f2f7f4",
@@ -417,6 +417,84 @@ function MItem({ onClick, children }) {
   return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? "#f3f4f6" : "none", textAlign: "left", fontSize: 11.5, cursor: "pointer", borderRadius: 3, color: "#374151" }}>{children}</button>;
 }
 
+/* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
+function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily }) {
+  const containerRef = useRef(null);
+  const [containerW, setContainerW] = useState(600);
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const obs = new ResizeObserver((entries) => {
+      for (const e of entries) setContainerW(e.contentRect.width);
+    });
+    obs.observe(containerRef.current);
+    return () => obs.disconnect();
+  }, []);
+
+  // 체크된 페이지만 수집
+  const checkedPages = [];
+  allUnits.forEach((u) => {
+    ["answer", "blank"].forEach((mode) => {
+      const key = `${u.filePath}::${mode}`;
+      if (printChecked.has(key)) checkedPages.push({ ...u, mode, key });
+    });
+  });
+
+  // 그룹별로 분류
+  const grouped = {};
+  const ungrouped = [];
+  checkedPages.forEach((p) => {
+    if (p.group) { if (!grouped[p.group]) grouped[p.group] = []; grouped[p.group].push(p); }
+    else ungrouped.push(p);
+  });
+
+  const gap = 12;
+  const labelH = 28;
+  const thumbW = Math.min((containerW - gap * 3) / 2, 370);
+  const scale = thumbW / 740;
+  const thumbH = 1046 * scale;
+
+  const renderPage = (p) => (
+    <div key={p.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
+      {/* 라벨 — 이미지 바깥 위 */}
+      <div style={{ height: labelH, display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: "#374151" }}>{p.fileName}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, color: p.mode === "answer" ? "#00391e" : "#ec6619", letterSpacing: 1, textTransform: "uppercase", opacity: 0.7 }}>
+          {p.mode === "answer" ? "— answer" : "— worksheet"}
+        </span>
+      </div>
+      {/* 썸네일 */}
+      <div onClick={() => togglePrintCheck(p.key)} style={{ position: "relative", cursor: "pointer", width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
+        <div id={`thumb-${p.key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
+          <Preview unit={p.unit} isBlank={p.mode === "blank"} logo={p.unit.settings?.logo} slogan={p.unit.settings?.slogan} fontFamily={fontFamily} tags={p.unit.settings?.tags || DEFAULT_TAGS} numColor={p.unit.settings?.numTagColor} printId={`pv-${p.key}`} />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (checkedPages.length === 0) return <div style={{ color: "#999", fontSize: 12, padding: 40, textAlign: "center" }}>왼쪽에서 인쇄할 페이지를 선택하세요</div>;
+
+  return (
+    <div ref={containerRef} id="print-thumbs" style={{ width: "100%", display: "flex", flexDirection: "column", gap: 20, paddingBottom: 20 }}>
+      {Object.entries(grouped).map(([gName, pages]) => (
+        <div key={gName}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#555", padding: "0 4px 6px", borderBottom: "2px solid #d1d5db", marginBottom: 10 }}>{gName}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap, justifyContent: "center" }}>
+            {pages.map(renderPage)}
+          </div>
+        </div>
+      ))}
+      {ungrouped.length > 0 && (
+        <div>
+          {Object.keys(grouped).length > 0 && <div style={{ fontSize: 12, fontWeight: 800, color: "#aaa", padding: "0 4px 6px", borderBottom: "2px solid #e5e7eb", marginBottom: 10 }}>미분류</div>}
+          <div style={{ display: "flex", flexWrap: "wrap", gap, justifyContent: "center" }}>
+            {ungrouped.map(renderPage)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════ MAIN APP ═══════ */
 export default function App() {
   // 작업 폴더 상태
@@ -441,6 +519,12 @@ export default function App() {
   const splitDragging = useRef(false);
   const splitContainerRef = useRef(null);
   const saveTimerRef = useRef(null);
+
+  // 오른쪽 패널 탭: "edit" | "print"
+  const [rightTab, setRightTab] = useState("edit");
+  const [allUnits, setAllUnits] = useState([]); // [{filePath, fileName, unit}]
+  const [printChecked, setPrintChecked] = useState(new Set()); // "filePath::answer" | "filePath::blank"
+  const [printing, setPrinting] = useState(false);
 
   const settings = unit?.settings || DEFAULT_SETTINGS;
 
@@ -534,6 +618,90 @@ export default function App() {
     window.electronAPI.onMenuNewUnit(() => addNewUnit(null));
     window.electronAPI.onMenuSave(() => saveFile());
   }, []);
+
+  // 인쇄 탭으로 전환 시 모든 파일 로드
+  const loadAllUnits = async () => {
+    if (!window.electronAPI) return;
+    // 현재 편집 중인 파일 먼저 저장
+    if (dirty && currentFile && unit) await saveFile();
+    const loaded = [];
+    for (const f of fileList) {
+      const result = await window.electronAPI.readFile(f.path);
+      if (!result.success) continue;
+      try {
+        let d = JSON.parse(result.content);
+        if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || DEFAULT_SETTINGS };
+        d = migrateUnit(d);
+        if (d.rows) loaded.push({ filePath: f.path, fileName: f.name.replace(/\.(btm|json)$/, ""), group: f.group, unit: d });
+      } catch {}
+    }
+    setAllUnits(loaded);
+    // 기본: 전체 해제
+    setPrintChecked(new Set());
+  };
+
+  const switchToTab = (tab) => {
+    setRightTab(tab);
+    if (tab === "print") loadAllUnits();
+  };
+
+  // 인쇄 체크 토글
+  const togglePrintCheck = (key) => setPrintChecked((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const toggleAllPrintCheck = () => {
+    const allKeys = [];
+    allUnits.forEach((u) => { allKeys.push(`${u.filePath}::answer`); allKeys.push(`${u.filePath}::blank`); });
+    setPrintChecked((s) => s.size === allKeys.length ? new Set() : new Set(allKeys));
+  };
+  const toggleAllByMode = (mode) => {
+    const keys = allUnits.map((u) => `${u.filePath}::${mode}`);
+    setPrintChecked((s) => {
+      const n = new Set(s);
+      const allOn = keys.every((k) => n.has(k));
+      keys.forEach((k) => allOn ? n.delete(k) : n.add(k));
+      return n;
+    });
+  };
+  const toggleGroupPrint = (groupUnits, mode) => {
+    // mode가 없으면 A+W 전체, 있으면 해당 모드만
+    const keys = [];
+    groupUnits.forEach((u) => {
+      if (!mode || mode === "answer") keys.push(`${u.filePath}::answer`);
+      if (!mode || mode === "blank") keys.push(`${u.filePath}::blank`);
+    });
+    setPrintChecked((s) => {
+      const n = new Set(s);
+      const allOn = keys.every((k) => n.has(k));
+      keys.forEach((k) => allOn ? n.delete(k) : n.add(k));
+      return n;
+    });
+  };
+
+  // 인쇄 실행 — 체크된 썸네일의 HTML을 추출
+  const executePrint = async () => {
+    if (!window.electronAPI || printChecked.size === 0) return;
+    setPrinting(true);
+    // 체크된 썸네일들의 내부 HTML 수집
+    const htmlParts = [];
+    allUnits.forEach((u) => {
+      ["answer", "blank"].forEach((mode) => {
+        const key = `${u.filePath}::${mode}`;
+        if (!printChecked.has(key)) return;
+        const el = document.getElementById(`thumb-${key}`);
+        if (el) htmlParts.push(el.innerHTML);
+      });
+    });
+    if (!htmlParts.length) { setPrinting(false); return; }
+    const pagesHtml = htmlParts.map((h) =>
+      `<div style="width:210mm;min-height:297mm;display:flex;justify-content:center;align-items:center;page-break-after:always">${h}</div>`
+    ).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+      <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}
+      div:last-child{page-break-after:auto!important}</style>
+      </head><body>${pagesHtml}</body></html>`;
+    await window.electronAPI.printPreview(html);
+    setPrinting(false);
+  };
 
   // 새 단원 생성
   const addNewUnit = async (groupName) => {
@@ -679,7 +847,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily, fontSize: 13, background: "#f0f2f5" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily, fontSize: 13, background: "#f0f2f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
         ${settings.customFont ? `@font-face{font-family:'CustomFont';src:url('${settings.customFont}');font-display:swap}` : ''}
@@ -697,125 +865,202 @@ export default function App() {
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
       `}</style>
 
-      {/* SIDEBAR */}
-      <div className="no-print" style={{ width: sidebarOpen ? 220 : 44, background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0, transition: "width .2s ease" }}>
-        {!sidebarOpen ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingTop: 10 }}>
-            <button onClick={() => setSidebarOpen(true)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 16, padding: 4, color: "#ec6619" }} title="사이드바 열기">☰</button>
-            <span style={{ writingMode: "vertical-rl", fontSize: 9, fontWeight: 800, color: "#00391e", letterSpacing: 3, opacity: 0.6 }}>백지테스트</span>
-          </div>
-        ) : <>
-        <div style={{ padding: "10px 12px 8px", borderBottom: "1px solid #e5e7eb" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-            <button onClick={() => setSidebarOpen(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 13, padding: "0 2px", color: "#aaa", flexShrink: 0 }} title="사이드바 접기">◀</button>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#00391e", letterSpacing: 1.5 }}>백지테스트</span>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: "#7e7e7f" }}>메이커</span>
-          </div>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => addNewUnit(null)} style={{ flex: 1, padding: "6px 0", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>+ 단원</button>
-            <button onClick={() => setAddGroupOpen(true)} style={{ padding: "6px 8px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 11, cursor: "pointer", color: "#888" }}>+ 그룹</button>
-          </div>
-          {addGroupOpen && (
-            <div style={{ display: "flex", gap: 3, marginTop: 5 }}>
-              <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 3, fontSize: 11, outline: "none" }} />
-              <button onClick={addGroup} style={{ padding: "3px 7px", border: "none", borderRadius: 3, background: "#ec6619", color: "#fff", fontSize: 10, cursor: "pointer" }}>확인</button>
-              <button onClick={() => { setAddGroupOpen(false); setNewGrp(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 11 }}>✕</button>
-            </div>
-          )}
+      {/* ═══ 최상위: 로고 + 모드 탭 ═══ */}
+      <div className="no-print" style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "6px 14px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: "#00391e", letterSpacing: 1.5 }}>백지테스트</span>
+        <span style={{ fontSize: 10.5, fontWeight: 600, color: "#7e7e7f" }}>메이커</span>
+        <div style={{ width: 1, height: 18, background: "#e5e7eb", margin: "0 4px" }} />
+        <div style={{ display: "flex", gap: 2, background: "#f3f4f6", borderRadius: 6, padding: 2 }}>
+          <button onClick={() => setRightTab("edit")} style={{ padding: "5px 20px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: rightTab === "edit" ? "#fff" : "transparent", color: rightTab === "edit" ? "#00391e" : "#aaa", boxShadow: rightTab === "edit" ? "0 1px 2px rgba(0,0,0,.06)" : "none" }}>편집</button>
+          <button onClick={() => switchToTab("print")} style={{ padding: "5px 20px", borderRadius: 5, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: rightTab === "print" ? "#fff" : "transparent", color: rightTab === "print" ? "#ec6619" : "#aaa", boxShadow: rightTab === "print" ? "0 1px 2px rgba(0,0,0,.06)" : "none" }}>인쇄</button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "4px 6px" }}>
-          {groups.map((g) => {
-            const gFiles = fileList.filter((f) => f.group === g.name);
-            const collapsed = collapsedGroups.has(g.name);
-            return (
-              <div key={g.name} style={{ marginBottom: 2 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 3, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.name)}>
-                  <span style={{ fontSize: 8, color: "#aaa", transform: collapsed ? "rotate(-90deg)" : "rotate(0)", transition: ".15s" }}>▼</span>
-                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "#374151" }}>{g.name}</span>
-                  <span style={{ fontSize: 9, color: "#bbb" }}>{gFiles.length}</span>
-                  <button onClick={(e) => { e.stopPropagation(); deleteGroup(g.path); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#ddd", padding: 0 }}>✕</button>
+        <div style={{ flex: 1 }} />
+        <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, fontSize: 10 }}>📁 폴더 변경</button>
+      </div>
+
+      {/* ═══ 편집 모드 ═══ */}
+      {rightTab === "edit" && (
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          {/* 편집 사이드바 */}
+          <div className="no-print" style={{ width: sidebarOpen ? 210 : 40, background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0, transition: "width .2s ease" }}>
+            {!sidebarOpen ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, paddingTop: 10 }}>
+                <button onClick={() => setSidebarOpen(true)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 14, padding: 4, color: "#ec6619" }} title="사이드바 열기">☰</button>
+              </div>
+            ) : <>
+            <div style={{ padding: "8px 10px 6px", borderBottom: "1px solid #e5e7eb" }}>
+              <div style={{ display: "flex", gap: 4 }}>
+                <button onClick={() => setSidebarOpen(false)} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 12, padding: "0 2px", color: "#aaa", flexShrink: 0 }} title="접기">◀</button>
+                <button onClick={() => addNewUnit(null)} style={{ flex: 1, padding: "5px 0", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>+ 단원</button>
+                <button onClick={() => setAddGroupOpen(true)} style={{ padding: "5px 8px", borderRadius: 5, border: "1px solid #d1d5db", background: "#fff", fontSize: 10.5, cursor: "pointer", color: "#888" }}>+ 그룹</button>
+              </div>
+              {addGroupOpen && (
+                <div style={{ display: "flex", gap: 3, marginTop: 5 }}>
+                  <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 3, fontSize: 11, outline: "none" }} />
+                  <button onClick={addGroup} style={{ padding: "3px 7px", border: "none", borderRadius: 3, background: "#ec6619", color: "#fff", fontSize: 10, cursor: "pointer" }}>확인</button>
+                  <button onClick={() => { setAddGroupOpen(false); setNewGrp(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 11 }}>✕</button>
                 </div>
-                {!collapsed && gFiles.map((f) => <FileItem key={f.path} f={f} />)}
-                {!collapsed && <button onClick={() => addNewUnit(g.name)} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 10, color: "#bbb", cursor: "pointer", marginTop: 1, marginBottom: 3 }}>+ 단원</button>}
-              </div>
-            );
-          })}
-          {ungroupedFiles.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              {groups.length > 0 && <div style={{ padding: "3px 5px", fontSize: 10, color: "#aaa", fontWeight: 600 }}>미분류</div>}
-              {ungroupedFiles.map((f) => <FileItem key={f.path} f={f} />)}
+              )}
             </div>
-          )}
-        </div>
-        <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb", display: "flex", gap: 4 }}>
-          <button onClick={() => setSettingsOpen(true)} style={{ ...BS, flex: 1 }} disabled={!unit}>⚙ 설정</button>
-          <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, flex: 1 }}>📁 폴더 변경</button>
-        </div>
-        </>}
-      </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "4px 6px" }}>
+              {groups.map((g) => {
+                const gFiles = fileList.filter((f) => f.group === g.name);
+                const collapsed = collapsedGroups.has(g.name);
+                return (
+                  <div key={g.name} style={{ marginBottom: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "4px 5px", borderRadius: 3, cursor: "pointer", userSelect: "none" }} onClick={() => toggleGroup(g.name)}>
+                      <span style={{ fontSize: 8, color: "#aaa", transform: collapsed ? "rotate(-90deg)" : "rotate(0)", transition: ".15s" }}>▼</span>
+                      <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "#374151" }}>{g.name}</span>
+                      <span style={{ fontSize: 9, color: "#bbb" }}>{gFiles.length}</span>
+                      <button onClick={(e) => { e.stopPropagation(); deleteGroup(g.path); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 9, color: "#ddd", padding: 0 }}>✕</button>
+                    </div>
+                    {!collapsed && gFiles.map((f) => <FileItem key={f.path} f={f} />)}
+                    {!collapsed && <button onClick={() => addNewUnit(g.name)} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 10, color: "#bbb", cursor: "pointer", marginTop: 1, marginBottom: 3 }}>+ 단원</button>}
+                  </div>
+                );
+              })}
+              {ungroupedFiles.length > 0 && (
+                <div style={{ marginTop: 4 }}>
+                  {groups.length > 0 && <div style={{ padding: "3px 5px", fontSize: 10, color: "#aaa", fontWeight: 600 }}>미분류</div>}
+                  {ungroupedFiles.map((f) => <FileItem key={f.path} f={f} />)}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: "6px 8px", borderTop: "1px solid #e5e7eb" }}>
+              <button onClick={() => setSettingsOpen(true)} style={{ ...BS, width: "100%" }} disabled={!unit}>⚙ 설정</button>
+            </div>
+            </>}
+          </div>
 
-      {/* MAIN */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* Topbar */}
-        <div className="no-print" style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "7px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          {unit ? (
-            <>
-              <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} style={{ fontSize: 15, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 180 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+          {/* 편집 메인 */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            {/* 서브바 */}
+            <div className="no-print" style={{ background: "#f9faf8", borderBottom: "1px solid #e5e7eb", padding: "5px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {unit ? (<>
+                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} style={{ fontSize: 14, fontWeight: 700, border: "none", outline: "none", background: "transparent", padding: "2px 4px", borderBottom: "2px solid transparent", width: 170 }} onFocus={(e) => { e.target.style.borderBottomColor = "#f5a855"; }} onBlur={(e) => { e.target.style.borderBottomColor = "transparent"; }} />
+                  <span style={{ fontSize: 13, color: "#bbb", cursor: "text" }} onClick={(e) => { e.target.previousSibling.focus(); }}>✎</span>
+                </div>
+                <div style={{ display: "flex", gap: 2, background: "#e8efe9", borderRadius: 6, padding: 2 }}>
+                  {[{ k: "answer", l: "ANSWER" }, { k: "blank", l: "WORKSHEET" }].map((v) => (
+                    <button key={v.k} onClick={() => setPreviewMode(v.k)} style={{
+                      padding: "3px 12px", borderRadius: 5, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", letterSpacing: 0.5,
+                      background: previewMode === v.k ? "#fff" : "transparent",
+                      color: previewMode === v.k ? (v.k === "answer" ? "#00391e" : "#ec6619") : "#999",
+                      boxShadow: previewMode === v.k ? "0 1px 2px rgba(0,0,0,.06)" : "none",
+                    }}>{v.l}</button>
+                  ))}
+                </div>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setPreviewZoom(Math.max(30, previewZoom - 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>−</button>
+                <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 32, textAlign: "center" }}>{previewZoom}%</span>
+                <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 22, height: 22, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
+              </>) : <span style={{ color: "#aaa", fontSize: 12 }}>사이드바에서 단원을 선택하세요</span>}
+            </div>
+            {/* Split: 에디터 + 미리보기 */}
+            <div ref={splitContainerRef} style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}
+              onMouseMove={(e) => { if (!splitDragging.current) return; const rect = splitContainerRef.current.getBoundingClientRect(); const pct = ((e.clientX - rect.left) / rect.width) * 100; setSplitPct(Math.max(20, Math.min(80, pct))); }}
+              onMouseUp={() => { splitDragging.current = false; }}
+              onMouseLeave={() => { splitDragging.current = false; }}
+            >
+              <div className="no-print" style={{ width: `${splitPct}%`, overflowY: "auto", padding: "8px 10px", background: "#fafafa" }}>
+                {unit ? (
+                  <>
+                    <EditorSideGroup side="l" label="왼쪽 (L)" color="#00391e" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
+                    <EditorSideGroup side="r" label="오른쪽 (R)" color="#ec6619" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
+                  </>
+                ) : (
+                  <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
+                    <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
+                    <div style={{ fontSize: 12 }}>사이드바에서 단원을 선택하세요</div>
+                  </div>
+                )}
+              </div>
+              <div className="no-print" onMouseDown={() => { splitDragging.current = true; }} style={{ width: 6, cursor: "col-resize", background: "#e5e7eb", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}>
+                <div style={{ width: 2, height: 32, borderRadius: 1, background: "#aaa" }} />
+              </div>
+              <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
+                <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
+                  <Preview unit={unit} isBlank={previewMode === "blank"} logo={settings.logo} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ 인쇄 모드 ═══ */}
+      {rightTab === "print" && (
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          {/* 인쇄 사이드바 */}
+          <div className="no-print" style={{ width: 220, background: "#fff", borderRight: "1px solid #e5e7eb", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+            <div style={{ padding: "8px 10px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#374151", flex: 1 }}>단원 목록</span>
+              <button onClick={toggleAllPrintCheck} style={{ border: "none", background: "none", fontSize: 10, color: "#555", cursor: "pointer", fontWeight: 600 }}>
+                {printChecked.size === allUnits.length * 2 ? "전체 해제" : "전체 선택"}
+              </button>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {(() => {
+                const grouped = {};
+                const ungrouped = [];
+                allUnits.forEach((u) => {
+                  if (u.group) { if (!grouped[u.group]) grouped[u.group] = []; grouped[u.group].push(u); }
+                  else ungrouped.push(u);
+                });
+                const renderUnit = (u) => {
+                  const aKey = `${u.filePath}::answer`;
+                  const bKey = `${u.filePath}::blank`;
+                  return (
+                    <div key={u.filePath} style={{ display: "flex", alignItems: "center", gap: 0, padding: "5px 6px 5px 14px", borderBottom: "1px solid #f5f5f5" }}>
+                      <span style={{ flex: 1, fontSize: 11.5, fontWeight: 500, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.fileName}</span>
+                      <label style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", padding: "2px 5px", borderRadius: 3, background: printChecked.has(aKey) ? "#e8efe9" : "transparent" }} title="Answer Sheet">
+                        <input type="checkbox" checked={printChecked.has(aKey)} onChange={() => togglePrintCheck(aKey)} style={{ accentColor: "#00391e", width: 13, height: 13 }} />
+                        <span style={{ fontSize: 8.5, fontWeight: 700, color: printChecked.has(aKey) ? "#00391e" : "#ccc" }}>A</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", padding: "2px 5px", borderRadius: 3, background: printChecked.has(bKey) ? "#fef3eb" : "transparent" }} title="Worksheet">
+                        <input type="checkbox" checked={printChecked.has(bKey)} onChange={() => togglePrintCheck(bKey)} style={{ accentColor: "#ec6619", width: 13, height: 13 }} />
+                        <span style={{ fontSize: 8.5, fontWeight: 700, color: printChecked.has(bKey) ? "#ec6619" : "#ccc" }}>W</span>
+                      </label>
+                    </div>
+                  );
+                };
+                return (<>
+                  {Object.entries(grouped).map(([gName, gUnits]) => (
+                    <div key={gName}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 3, padding: "5px 8px", background: "#f9fafb", borderBottom: "1px solid #eee" }}>
+                        <span style={{ flex: 1, fontSize: 10.5, fontWeight: 700, color: "#555" }}>{gName}</span>
+                        <button onClick={() => toggleGroupPrint(gUnits, "answer")} style={{ border: "none", background: "none", fontSize: 8.5, color: "#00391e", cursor: "pointer", fontWeight: 700 }}>A</button>
+                        <button onClick={() => toggleGroupPrint(gUnits, "blank")} style={{ border: "none", background: "none", fontSize: 8.5, color: "#ec6619", cursor: "pointer", fontWeight: 700 }}>W</button>
+                        <button onClick={() => toggleGroupPrint(gUnits)} style={{ border: "none", background: "none", fontSize: 8.5, color: "#888", cursor: "pointer", fontWeight: 600 }}>전체</button>
+                      </div>
+                      {gUnits.map(renderUnit)}
+                    </div>
+                  ))}
+                  {ungrouped.length > 0 && (<>
+                    {Object.keys(grouped).length > 0 && <div style={{ padding: "5px 8px", background: "#f9fafb", borderBottom: "1px solid #eee", fontSize: 10.5, fontWeight: 700, color: "#aaa" }}>미분류</div>}
+                    {ungrouped.map(renderUnit)}
+                  </>)}
+                </>);
+              })()}
+              {allUnits.length === 0 && <div style={{ padding: 16, color: "#bbb", fontSize: 11, textAlign: "center" }}>파일이 없습니다</div>}
+            </div>
+          </div>
+          {/* 인쇄 메인 */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <div className="no-print" style={{ background: "#fdf8f4", borderBottom: "1px solid #e5e7eb", padding: "6px 14px", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 11, color: "#888" }}>{printChecked.size}페이지 선택됨</span>
               <div style={{ flex: 1 }} />
-              <div style={{ display: "flex", gap: 2, background: "#f3f4f6", borderRadius: 6, padding: 2 }}>
-                {[{ k: "answer", l: "답지" }, { k: "blank", l: "시험지" }].map((v) => (
-                  <button key={v.k} onClick={() => setPreviewMode(v.k)} style={{
-                    padding: "4px 12px", borderRadius: 5, border: "none", fontSize: 11.5, fontWeight: 600, cursor: "pointer",
-                    background: previewMode === v.k ? "#fff" : "transparent",
-                    color: previewMode === v.k ? (v.k === "answer" ? "#00391e" : "#ec6619") : "#aaa",
-                    boxShadow: previewMode === v.k ? "0 1px 2px rgba(0,0,0,.06)" : "none",
-                  }}>{v.l}</button>
-                ))}
-              </div>
-              <button onClick={() => window.electronAPI ? window.electronAPI.printPreview() : window.print()} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>🖨 인쇄</button>
-            </>
-          ) : <span style={{ color: "#aaa", fontSize: 12 }}>단원을 선택하세요</span>}
-        </div>
-
-        {/* Split */}
-        <div ref={splitContainerRef} style={{ flex: 1, display: "flex", minHeight: 0, position: "relative" }}
-          onMouseMove={(e) => { if (!splitDragging.current) return; const rect = splitContainerRef.current.getBoundingClientRect(); const pct = ((e.clientX - rect.left) / rect.width) * 100; setSplitPct(Math.max(20, Math.min(80, pct))); }}
-          onMouseUp={() => { splitDragging.current = false; }}
-          onMouseLeave={() => { splitDragging.current = false; }}
-        >
-          {/* Editor */}
-          <div className="no-print" style={{ width: `${splitPct}%`, overflowY: "auto", padding: "8px 10px", background: "#fafafa" }}>
-            {unit ? (
-              <>
-                <EditorSideGroup side="l" label="왼쪽 (L)" color="#00391e" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
-                <EditorSideGroup side="r" label="오른쪽 (R)" color="#ec6619" rows={unit.rows} onCellChange={updateCellField} onMove={moveCellContent} tags={settings.tags} numColor={settings.numTagColor} />
-              </>
-            ) : (
-              <div style={{ textAlign: "center", padding: 40, color: "#bbb" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-                <div style={{ fontSize: 12 }}>사이드바에서 단원을 선택하세요</div>
-              </div>
-            )}
-          </div>
-          {/* Drag handle */}
-          <div className="no-print" onMouseDown={() => { splitDragging.current = true; }}
-            style={{ width: 6, cursor: "col-resize", background: "#e5e7eb", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 5 }}
-          >
-            <div style={{ width: 2, height: 32, borderRadius: 1, background: "#aaa" }} />
-          </div>
-          {/* Preview */}
-          <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", display: "flex", flexDirection: "column", alignItems: "center", padding: "8px 8px" }}>
-            <div className="no-print" style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 6, flexShrink: 0 }}>
-              <button onClick={() => setPreviewZoom(Math.max(30, previewZoom - 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>−</button>
-              <span style={{ fontSize: 10, color: "#888", fontWeight: 600, minWidth: 36, textAlign: "center" }}>{previewZoom}%</span>
-              <button onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))} style={{ width: 24, height: 24, border: "1px solid #ccc", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#555", lineHeight: 1 }}>+</button>
+              <button onClick={executePrint} disabled={printing || printChecked.size === 0} style={{ padding: "5px 16px", borderRadius: 5, border: "none", background: (printing || printChecked.size === 0) ? "#ccc" : "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: (printing || printChecked.size === 0) ? "default" : "pointer" }}>
+                {printing ? "처리 중..." : "🖨 인쇄"}
+              </button>
             </div>
-            <div id="preview-zoom" style={{ transform: `scale(${previewZoom / 100})`, transformOrigin: "top center", flexShrink: 0 }}>
-              <Preview unit={unit} isBlank={previewMode === "blank"} logo={settings.logo} slogan={settings.slogan} fontFamily={fontFamily} tags={settings.tags} numColor={settings.numTagColor} />
+            <div style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "12px" }}>
+              <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} />
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Settings Modal */}
       {settingsOpen && (
@@ -920,6 +1165,7 @@ export default function App() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
