@@ -434,6 +434,7 @@ export default function App() {
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [newGrp, setNewGrp] = useState("");
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [currentFile, setCurrentFile] = useState(null);
   const fileMenuRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewZoom, setPreviewZoom] = useState(100);
@@ -443,82 +444,54 @@ export default function App() {
 
   const unit = data.units.find((u) => u.id === curId) || null;
 
+  const migrateData = (p) => {
+    if (!p.units) return null;
+    if (p.settings?.academyName && !p.settings.slogan) { p.settings.slogan = p.settings.academyName; delete p.settings.academyName; }
+    p.units = p.units.map((u) => {
+      if (u.headerL || u.headerR) { const hasHdr = u.rows.length > 0 && u.rows[0].l?.hdr; if (!hasHdr) u.rows = [hdrRow(u.headerL || "SUMMARY", u.headerR || "PRACTICE"), ...u.rows]; delete u.headerL; delete u.headerR; }
+      u.rows = padRows(u.rows); return u;
+    });
+    if (!p.settings) p.settings = {};
+    if (!p.settings.tags) p.settings.tags = DEFAULT_TAGS;
+    delete p.settings.ptags;
+    p.settings.tags = p.settings.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
+    p.units.forEach((u) => { u.rows.forEach((r) => { [r.l, r.r].forEach((c) => {
+      if (c.mark === undefined) c.mark = "";
+      if (c.indent === true) c.indent = 1; else if (!c.indent) c.indent = 0;
+      if (c.num) { if (!c.tag) c.tag = c.num; } delete c.num;
+      if (c.ptag !== undefined) { if (!c.mark) { const pv = c.ptag; c.mark = (pv === "영작" || pv === "수동태") ? `[${pv}]` : pv; } delete c.ptag; }
+      if (c.tag && OLD_PTAG_VALUES.has(c.tag)) { if (!c.mark) { const tv = c.tag; c.mark = (tv === "영작" || tv === "수동태") ? `[${tv}]` : tv; } c.tag = ""; }
+      if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; }
+    }); }); });
+    return p;
+  };
+
+  const loadData = (p) => {
+    const d = migrateData(p);
+    if (d) { setData(d); setCurId(d.units[0]?.id || null); }
+  };
+
+  useEffect(() => { setLoaded(true); }, []);
+
+  // Electron 메뉴 이벤트 연결
   useEffect(() => {
-    (async () => {
-      try {
-        const r = await window.storage.get("bt-v3");
-        if (r?.value) {
-          const p = JSON.parse(r.value);
-          if (p.units) {
-            // migrate: academyName → slogan
-            if (p.settings?.academyName && !p.settings.slogan) {
-              p.settings.slogan = p.settings.academyName;
-              delete p.settings.academyName;
-            }
-            // migrate: headerL/headerR → first hdr row, pad to TOTAL_ROWS
-            p.units = p.units.map((u) => {
-              if (u.headerL || u.headerR) {
-                const hasHdr = u.rows.length > 0 && u.rows[0].l?.hdr;
-                if (!hasHdr) u.rows = [hdrRow(u.headerL || "SUMMARY", u.headerR || "PRACTICE"), ...u.rows];
-                delete u.headerL; delete u.headerR;
-              }
-              u.rows = padRows(u.rows);
-              return u;
-            });
-            // migrate: unified tags + symmetric cells
-            if (!p.settings) p.settings = {};
-            if (!p.settings.tags) p.settings.tags = DEFAULT_TAGS;
-            // remove old ptags from settings, strip old ptag entries from tags list
-            delete p.settings.ptags;
-            p.settings.tags = p.settings.tags.filter((t) => !OLD_PTAG_VALUES.has(t.v) && !NUM_TAG_SET.has(t.v));
-            // migrate cell fields
-            p.units.forEach((u) => {
-              u.rows.forEach((r) => {
-                [r.l, r.r].forEach((c) => {
-                  // ensure mark exists
-                  if (c.mark === undefined) c.mark = "";
-                  // indent: boolean → number
-                  if (c.indent === true) c.indent = 1;
-                  else if (!c.indent) c.indent = 0;
-                  // num → tag (1,2,3...)
-                  if (c.num) {
-                    if (!c.tag) c.tag = c.num;
-                  }
-                  delete c.num;
-                  // ptag → mark
-                  if (c.ptag !== undefined) {
-                    if (!c.mark) {
-                      const pv = c.ptag;
-                      c.mark = (pv === "영작" || pv === "수동태") ? `[${pv}]` : pv;
-                    }
-                    delete c.ptag;
-                  }
-                  // tag that was a ptag value → move to mark
-                  if (c.tag && OLD_PTAG_VALUES.has(c.tag)) {
-                    if (!c.mark) {
-                      const tv = c.tag;
-                      c.mark = (tv === "영작" || tv === "수동태") ? `[${tv}]` : tv;
-                    }
-                    c.tag = "";
-                  }
-                  // ans → vis (invert: ans=true meant hidden, vis=true means visible)
-                  if (c.vis === undefined) {
-                    c.vis = !c.ans;
-                    delete c.ans;
-                  }
-                });
-              });
-            });
-            setData(p); setCurId(p.units[0]?.id || null);
-          }
+    if (!window.electronAPI) return;
+    window.electronAPI.onFileOpened(({ data: d, filePath }) => { loadData(d); setCurrentFile(filePath); });
+    window.electronAPI.onRequestSave(async ({ filePath }) => {
+      const content = JSON.stringify(data, null, 2);
+      await window.electronAPI.saveFile(filePath, content);
+    });
+    window.electronAPI.onMenuNew(() => { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); setCurrentFile(null); });
+    window.electronAPI.onUnitsImported((unitFiles) => {
+      unitFiles.forEach((d) => {
+        if (d._type === "bt-units" && d.units) {
+          const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; });
+          if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); }
+          setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId);
         }
-      } catch {} setLoaded(true);
-    })();
+      });
+    });
   }, []);
-  useEffect(() => {
-    if (!loaded) return;
-    (async () => { try { await window.storage.set("bt-v3", JSON.stringify(data)); } catch {} })();
-  }, [data, loaded]);
 
   useEffect(() => {
     if (!fileMenuOpen) return;
@@ -558,23 +531,56 @@ export default function App() {
 
   const handleLogo = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ logo: ev.target.result }); r.readAsDataURL(f); }; i.click(); };
   const handleFont = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".woff2,.woff,.ttf,.otf"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setSettings({ customFont: ev.target.result, customFontName: f.name }); r.readAsDataURL(f); }; i.click(); };
-  const exportJSON = () => {
-    const d = new Date(); const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = `백지테스트_${ds}.json`; a.click(); URL.revokeObjectURL(u);
+  const saveAs = async () => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.saveFileDialog();
+    if (result.canceled) return;
+    const content = JSON.stringify(data, null, 2);
+    const r = await window.electronAPI.saveFile(result.filePath, content);
+    if (r.success) setCurrentFile(result.filePath);
   };
-  const importJSON = () => {
-    if (!confirm("주의: 현재 작업 중인 데이터가 모두 교체됩니다.\n\n미리 '내 데이터 저장'으로 백업하셨나요?")) return;
-    const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = (e) => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d.units) { setData(d); setCurId(d.units[0]?.id || null); } else { alert("올바른 데이터 파일이 아닙니다."); } } catch { alert("잘못된 파일입니다."); } }; r.readAsText(f); }; i.click();
+  const saveFile = async () => {
+    if (!window.electronAPI) return;
+    if (currentFile) {
+      await window.electronAPI.saveFile(currentFile, JSON.stringify(data, null, 2));
+    } else {
+      await saveAs();
+    }
   };
-  const exportUnit = (id) => {
+  const openFile = async () => {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.openFileDialog();
+    if (result.canceled) return;
+    try {
+      const d = JSON.parse(result.content);
+      if (d.units) { loadData(d); setCurrentFile(result.filePath); }
+      else alert("올바른 백지테스트 파일이 아닙니다.");
+    } catch { alert("잘못된 파일입니다."); }
+  };
+  const exportUnit = async (id) => {
     const u = data.units.find((x) => x.id === id); if (!u) return;
     const usedTags = new Set();
     u.rows.forEach((r) => { if (r.l.tag && !NUM_TAG_SET.has(r.l.tag)) usedTags.add(r.l.tag); if (r.r.tag && !NUM_TAG_SET.has(r.r.tag)) usedTags.add(r.r.tag); });
     const tags = (data.settings.tags || DEFAULT_TAGS).filter((t) => usedTags.has(t.v));
     const d = { _type: "bt-units", units: [JSON.parse(JSON.stringify(u))], tags };
-    const b = new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(b); const a = document.createElement("a"); a.href = url; a.download = `${u.title}.json`; a.click(); URL.revokeObjectURL(url);
+    if (window.electronAPI) {
+      await window.electronAPI.exportUnit(JSON.stringify(d, null, 2), u.title);
+    }
   };
-  const importUnits = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.multiple = true; i.onchange = (e) => { Array.from(e.target.files).forEach((f) => { const r = new FileReader(); r.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if (d._type === "bt-units" && d.units) { const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; }); if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); } setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId); } else { alert("단원 파일이 아닙니다. 단원 내보내기로 만든 파일만 가져올 수 있습니다."); } } catch { alert("잘못된 파일: " + f.name); } }; r.readAsText(f); }); }; i.click(); };
+  const importUnits = async () => {
+    // 단원 가져오기는 메뉴에서도 호출 가능 (main.js에서 처리)
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.openFileDialog();
+    if (result.canceled) return;
+    try {
+      const d = JSON.parse(result.content);
+      if (d._type === "bt-units" && d.units) {
+        const newUnits = d.units.map((u) => { const nu = JSON.parse(JSON.stringify(u)); nu.id = uid(); nu.rows.forEach((r) => { r.id = uid(); [r.l, r.r].forEach((c) => { if (c.vis === undefined) { c.vis = !c.ans; delete c.ans; } }); }); nu.groupId = null; return nu; });
+        if (d.tags && d.tags.length) { setSettings({ tags: (() => { const cur = data.settings.tags || DEFAULT_TAGS; const curSet = new Set(cur.map((t) => t.v)); const added = d.tags.filter((t) => !curSet.has(t.v)); return added.length ? [...cur, ...added] : cur; })() }); }
+        setUnits((us) => [...us, ...newUnits]); setCurId(newUnits[0]?.id || curId);
+      } else { alert("단원 파일이 아닙니다."); }
+    } catch { alert("잘못된 파일입니다."); }
+  };
   const resetAll = () => { if (confirm("초기화할까요?")) { setData(DEFAULT_STATE); setCurId(DEFAULT_STATE.units[0]?.id || null); } };
 
   if (!loaded) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "sans-serif", color: "#999" }}>불러오는 중...</div>;
@@ -665,12 +671,14 @@ export default function App() {
             <button onClick={() => setFileMenuOpen(!fileMenuOpen)} style={{ ...BS, width: "100%", background: fileMenuOpen ? "#fff7f0" : "#fff" }}>📁 파일</button>
             {fileMenuOpen && (
               <div style={{ position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", borderRadius: 8, boxShadow: "0 -4px 20px rgba(0,0,0,.12)", padding: 6, zIndex: 50, minWidth: 190 }}>
-                <div style={{ padding: "4px 8px", fontSize: 9, color: "#999", fontWeight: 700, letterSpacing: 1 }}>내 데이터</div>
-                <button onClick={() => { exportJSON(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  💾 내 데이터 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>JSON 파일로 PC에 다운로드</span>
+                <button onClick={() => { openFile(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  📂 열기<br/><span style={{ fontSize: 9.5, color: "#999" }}>저장된 파일 열기 (Ctrl+O)</span>
                 </button>
-                <button onClick={() => { importJSON(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
-                  📂 내 데이터 불러오기<br/><span style={{ fontSize: 9.5, color: "#999" }}>저장한 JSON 파일로 전체 복원</span>
+                <button onClick={() => { saveFile(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  💾 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>{currentFile ? currentFile.split(/[/\\]/).pop() : "새 파일"} (Ctrl+S)</span>
+                </button>
+                <button onClick={() => { saveAs(); setFileMenuOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "7px 10px", border: "none", background: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background="#fff7f0"} onMouseLeave={(e) => e.target.style.background="none"}>
+                  📄 다른 이름으로 저장<br/><span style={{ fontSize: 9.5, color: "#999" }}>새 파일로 저장 (Ctrl+Shift+S)</span>
                 </button>
                 <div style={{ height: 1, background: "#e5e7eb", margin: "4px 0" }} />
                 <div style={{ padding: "4px 8px", fontSize: 9, color: "#999", fontWeight: 700, letterSpacing: 1 }}>단원 공유</div>
@@ -706,7 +714,7 @@ export default function App() {
                   }}>{v.l}</button>
                 ))}
               </div>
-              <button onClick={() => window.print()} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>🖨 인쇄</button>
+              <button onClick={() => window.electronAPI ? window.electronAPI.printPreview() : window.print()} style={{ padding: "5px 12px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>🖨 인쇄</button>
             </>
           ) : <span style={{ color: "#aaa", fontSize: 12 }}>단원을 선택하세요</span>}
         </div>
