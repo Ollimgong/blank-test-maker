@@ -24,12 +24,13 @@ const emptyRow = () => ({
 });
 
 /* ═══════ 인라인 마크업 파서 ═══════ */
-// == HEADER == → 헤더, #태그 → 컬러 뱃지, <소제목> → 강조, [라벨] → 가벼운 라벨, *텍스트* → 워크시트에서도 표시
+// # HEADER (줄 시작) → 헤더, ## 소제목 (줄 시작) → 강조, @태그 → 컬러 뱃지, [라벨], *보임*
 const parseInlineMarkup = (text, tags) => {
   if (!text) return [];
-  // == HEADER == 패턴: 전체 텍스트가 == ... == 이면 헤더
-  const hdrMatch = text.match(/^==\s*(.+?)\s*==$/);
-  if (hdrMatch) return [{ type: "header", value: hdrMatch[1] }];
+  // ## 소제목 (줄 시작이 ## 이면 소제목)
+  if (text.startsWith("## ")) return [{ type: "heading", value: text.substring(3) }];
+  // # 헤더 (줄 시작이 # 이면 헤더)
+  if (text.startsWith("# ")) return [{ type: "header", value: text.substring(2) }];
 
   const tagNames = (tags || DEFAULT_TAGS).map((t) => t.v).filter(Boolean);
   tagNames.sort((a, b) => b.length - a.length);
@@ -40,13 +41,13 @@ const parseInlineMarkup = (text, tags) => {
   };
   let i = 0;
   while (i < text.length) {
-    // #태그
-    if (text[i] === "#") {
+    // @태그
+    if (text[i] === "@") {
       let matched = false;
       for (const tn of tagNames) {
         if (text.substring(i + 1, i + 1 + tn.length) === tn) {
           const after = i + 1 + tn.length;
-          if (after >= text.length || /[\s#\[<*]/.test(text[after])) {
+          if (after >= text.length || /[\s@\[*]/.test(text[after])) {
             const tc = tagColor(tn, tags);
             segments.push({ type: "tag", value: tn, c: tc.c, tx: tc.tx });
             i = after;
@@ -56,27 +57,8 @@ const parseInlineMarkup = (text, tags) => {
           }
         }
       }
-      if (!matched) { pushText("#"); i++; }
+      if (!matched) { pushText("@"); i++; }
       continue;
-    }
-    // <<이스케이프>> → 리터럴 <...>
-    if (text[i] === "<" && text[i + 1] === "<") {
-      const close = text.indexOf(">>", i + 2);
-      if (close !== -1) {
-        pushText("<" + text.substring(i + 2, close) + ">");
-        i = close + 2;
-        continue;
-      }
-    }
-    // <소제목>
-    if (text[i] === "<") {
-      const close = text.indexOf(">", i + 1);
-      if (close !== -1 && close > i + 1) {
-        segments.push({ type: "heading", value: text.substring(i + 1, close) });
-        i = close + 1;
-        if (i < text.length && text[i] === " ") i++;
-        continue;
-      }
     }
     // **이스케이프** → 리터럴 *...*
     if (text[i] === "*" && text[i + 1] === "*") {
@@ -142,17 +124,17 @@ const mk = (ld, rd) => ({
 
 const hdrRow = (lText, rText) => ({
   id: uid(),
-  l: { text: `== ${lText} ==`, indent: 0 },
-  r: { text: `== ${rText} ==`, indent: 0 },
+  l: { text: `# ${lText}`, indent: 0 },
+  r: { text: `# ${rText}`, indent: 0 },
 });
 
 const PASSIVE_ROWS = [
   hdrRow("SUMMARY", "PRACTICE"),
-  mk({ x: "능동: 주어가 동사를 직접 함", a: 1 }, { x: "<영작 & 수동태 전환 연습>" }),
+  mk({ x: "능동: 주어가 동사를 직접 함", a: 1 }, { x: "## 영작 & 수동태 전환 연습" }),
   mk({ x: "수동: 주어가 동사를 다른 행위자에 의해 당함", a: 1 }, { x: "1 나의 친구들은 나를 사랑한다." }),
   mk({}, { x: "[영작] My friends love me.", a: 1 }),
-  mk({ x: "<능동태 -> 수동태 전환방법>" }, { x: "[수동태] I am loved by my friends.", a: 1 }),
-  mk({ x: "#예문 She wrote a letter.", a: 1 }, { x: "2 나는 접시들을 씻는다." }),
+  mk({ x: "## 능동태 -> 수동태 전환방법" }, { x: "[수동태] I am loved by my friends.", a: 1 }),
+  mk({ x: "@예문 She wrote a letter.", a: 1 }, { x: "2 나는 접시들을 씻는다." }),
   mk({ x: "1) 능동태의 주어, 동사, 목적어를 찾는다.", a: 1 }, { x: "[영작] I wash the dishes.", a: 1 }),
   mk({ x: "=> 주어: She / 동사: wrote / 목적어: a letter", a: 1 }, { x: "[수동태] The dishes are washed by me.", a: 1 }),
   mk({ x: "2) 능동태의 시제를 파악한다.", a: 1 }, { x: "3 그는 창문을 닫았다." }),
@@ -165,43 +147,43 @@ const PASSIVE_ROWS = [
   mk({ x: "=> A letter was written", a: 1 }, { x: "[영작] She will hold a party.", a: 1 }),
   mk({ x: "6) by + 원래 주어를 목적격으로 쓴다.", a: 1 }, { x: "[수동태] A party will be held by her.", a: 1 }),
   mk({ x: "=> A letter was written by her.", a: 1 }, { x: "6 할머니는 케이크를 구울 것이다." }),
-  mk({ x: "#주의 A letter was written by she. (X)", a: 1 }, { x: "[영작] Grandma will bake the cake.", a: 1 }),
+  mk({ x: "@주의 A letter was written by she. (X)", a: 1 }, { x: "[영작] Grandma will bake the cake.", a: 1 }),
   mk({}, { x: "[수동태] The cake will be baked by Grandma.", a: 1 }),
-  mk({ x: "<by + 목적격의 생략>" }, { x: "7 사람들은 미국에서 영어를 말한다." }),
-  mk({ x: "#개념 행위자가 분명하지 않거나 중요하지 않을 때", a: 1 }, { x: "[영작] People speak English in America.", a: 1 }),
+  mk({ x: "## by + 목적격의 생략" }, { x: "7 사람들은 미국에서 영어를 말한다." }),
+  mk({ x: "@개념 행위자가 분명하지 않거나 중요하지 않을 때", a: 1 }, { x: "[영작] People speak English in America.", a: 1 }),
   mk({ x: "by + 목적격은 생략할 수 있다", a: 1 }, { x: "[수동태] English is spoken in America.", a: 1 }),
-  mk({ x: "#예문 Someone planted the tree in 1995.", a: 1 }, {}),
+  mk({ x: "@예문 Someone planted the tree in 1995.", a: 1 }, {}),
   mk({ x: "=> The tree was planted in 1995.", a: 1 }, {}),
 ];
 
 const RELATIVE_ROWS = [
   hdrRow("SUMMARY", "PRACTICE"),
-  mk({ x: "관계대명사는 [[접속사 + 대명사]] 의 역할을 하며", a: 1 }, { x: "<영작연습>" }),
+  mk({ x: "관계대명사는 [[접속사 + 대명사]] 의 역할을 하며", a: 1 }, { x: "## 영작연습" }),
   mk({ x: "관계대명사가 이끄는 절은 앞의 명사(선행사)를 수식한다", a: 1, i: 1 }, { x: "1 나는 착한 소년을 안다." }),
-  mk({ x: "<주격관계대명사>" }, { x: "(1) I know a boy.", a: 1 }),
-  mk({ x: "#개념 주격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "(2) The boy is kind.", a: 1 }),
+  mk({ x: "## 주격관계대명사" }, { x: "(1) I know a boy.", a: 1 }),
+  mk({ x: "@개념 주격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "(2) The boy is kind.", a: 1 }),
   mk({ x: "주어의 역할을 한다", a: 1, i: 1 }, { x: "=> I know a boy ( who is kind ).", a: 1 }),
-  mk({ x: "#형태 - 선행사가 사람일 때 : who", a: 1 }, { x: "2 그는 내가 믿는 친구를 가지고 있다." }),
+  mk({ x: "@형태 - 선행사가 사람일 때 : who", a: 1 }, { x: "2 그는 내가 믿는 친구를 가지고 있다." }),
   mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { x: "(1) He has a friend.", a: 1 }),
-  mk({ x: "#예문 She is a girl ( who likes pasta ).", a: 1 }, { x: "(2) I trust the friend.", a: 1 }),
+  mk({ x: "@예문 She is a girl ( who likes pasta ).", a: 1 }, { x: "(2) I trust the friend.", a: 1 }),
   mk({ x: "선행사 (사람O)", a: 1 }, { x: "=> He has a friend ( who(m) I trust ).", a: 1 }),
-  mk({ x: "#예문 This is a house ( which is expensive ).", a: 1 }, { x: "3 우리는 빠른 차를 봤다." }),
+  mk({ x: "@예문 This is a house ( which is expensive ).", a: 1 }, { x: "3 우리는 빠른 차를 봤다." }),
   mk({ x: "선행사 (사람X)", a: 1 }, { x: "(1) We saw a car.", a: 1 }),
-  mk({ x: "<목적격관계대명사>" }, { x: "(2) The car was fast.", a: 1 }),
-  mk({ x: "#개념 목적격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> We saw a car ( which was fast ).", a: 1 }),
+  mk({ x: "## 목적격관계대명사" }, { x: "(2) The car was fast.", a: 1 }),
+  mk({ x: "@개념 목적격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> We saw a car ( which was fast ).", a: 1 }),
   mk({ x: "목적어의 역할을 한다", a: 1, i: 1 }, { x: "4 우리가 어제 만난 그 선생님은 착하다." }),
-  mk({ x: "#형태 - 선행사가 사람일 때 : who / whom", a: 1 }, { x: "(1) The teacher is kind.", a: 1 }),
+  mk({ x: "@형태 - 선행사가 사람일 때 : who / whom", a: 1 }, { x: "(1) The teacher is kind.", a: 1 }),
   mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { x: "(2) We met the teacher yesterday.", a: 1 }),
-  mk({ x: "#예문 She is a girl ( who(m) I like ).", a: 1 }, { x: "=> The teacher ( who(m) we met yesterday )", a: 1 }),
+  mk({ x: "@예문 She is a girl ( who(m) I like ).", a: 1 }, { x: "=> The teacher ( who(m) we met yesterday )", a: 1 }),
   mk({ x: "선행사 (사람O)", a: 1 }, { x: "is kind.", a: 1 }),
-  mk({ x: "#예문 This is a house ( which Joy bought ).", a: 1 }, { x: "5 그는 머리가 긴 소녀를 만났다." }),
+  mk({ x: "@예문 This is a house ( which Joy bought ).", a: 1 }, { x: "5 그는 머리가 긴 소녀를 만났다." }),
   mk({ x: "선행사 (사람X)", a: 1 }, { x: "(1) He met a girl.", a: 1 }),
-  mk({ x: "<소유격관계대명사>" }, { x: "(2) Her hair is long.", a: 1 }),
-  mk({ x: "#개념 소유격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> He met a girl ( whose hair is long ).", a: 1 }),
+  mk({ x: "## 소유격관계대명사" }, { x: "(2) Her hair is long.", a: 1 }),
+  mk({ x: "@개념 소유격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> He met a girl ( whose hair is long ).", a: 1 }),
   mk({ x: "소유격 역할을 한다", a: 1, i: 1 }, { x: "6 그는 부산에서 일하는 의사를 안다." }),
-  mk({ x: "#형태 선행사와 상관없이 whose", a: 1 }, { x: "(1) He knows a doctor.", a: 1 }),
-  mk({ x: "#예문 She is a girl ( whose hair is long ).", a: 1 }, { x: "(2) The doctor works in Busan.", a: 1 }),
-  mk({ x: "#예문 This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
+  mk({ x: "@형태 선행사와 상관없이 whose", a: 1 }, { x: "(1) He knows a doctor.", a: 1 }),
+  mk({ x: "@예문 She is a girl ( whose hair is long ).", a: 1 }, { x: "(2) The doctor works in Busan.", a: 1 }),
+  mk({ x: "@예문 This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
 ];
 
 const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
@@ -306,38 +288,35 @@ const textToEditHTML = (text, tags) => {
   let result = "";
   let i = 0;
   while (i < text.length) {
-    // #태그 하이라이팅
-    if (text[i] === "#") {
+    // ## 소제목 하이라이팅 (줄 시작)
+    if (i === 0 && text.startsWith("## ")) {
+      result += `<span style="color:#aaa">## </span><span style="font-weight:800;text-decoration:underline">${esc(text.substring(3))}</span>`;
+      i = text.length;
+      continue;
+    }
+    // # 헤더 하이라이팅 (줄 시작)
+    if (i === 0 && text.startsWith("# ")) {
+      result += `<span style="color:#00391e;font-weight:800">${esc(text)}</span>`;
+      i = text.length;
+      continue;
+    }
+    // @태그 하이라이팅
+    if (text[i] === "@") {
       let matched = false;
       for (const tn of tagNames) {
         if (text.substring(i + 1, i + 1 + tn.length) === tn) {
           const after = i + 1 + tn.length;
-          if (after >= text.length || /[\s#\[<*]/.test(text[after])) {
+          if (after >= text.length || /[\s@\[*]/.test(text[after])) {
             const tc = tagColor(tn, tags);
-            result += `<span style="color:${tc.c};font-weight:700">${esc("#" + tn)}</span>`;
+            result += `<span style="color:${tc.c};font-weight:700">${esc("@" + tn)}</span>`;
             i = after;
             matched = true;
             break;
           }
         }
       }
-      if (!matched) { result += esc("#"); i++; }
+      if (!matched) { result += esc("@"); i++; }
       continue;
-    }
-    // == HEADER == 하이라이팅 (전체 텍스트가 ==...== 패턴일 때)
-    if (i === 0 && text.match(/^==\s*.+?\s*==$/)) {
-      result += `<span style="color:#00391e;font-weight:800">${esc(text)}</span>`;
-      i = text.length;
-      continue;
-    }
-    // <소제목> 하이라이팅
-    if (text[i] === "<" && text[i + 1] !== "<") {
-      const close = text.indexOf(">", i + 1);
-      if (close !== -1 && close > i + 1) {
-        result += `<span style="color:#aaa">&lt;</span><span style="font-weight:800;text-decoration:underline">${esc(text.substring(i + 1, close))}</span><span style="color:#aaa">&gt;</span>`;
-        i = close + 1;
-        continue;
-      }
     }
     // [라벨] 하이라이팅
     if (text[i] === "[" && text[i + 1] !== "[") {
@@ -397,7 +376,7 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     // # 트리거 감지
     const cursorPos = caretRef.current;
     const beforeCursor = newText.substring(0, cursorPos);
-    const lastHash = beforeCursor.lastIndexOf("#");
+    const lastHash = beforeCursor.lastIndexOf("@");
     if (lastHash !== -1) {
       const partial = beforeCursor.substring(lastHash + 1);
       if (!partial.includes(" ")) {
@@ -413,7 +392,7 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     if (!tagDrop) return;
     const before = cell.text.substring(0, tagDrop.hashIdx);
     const after = cell.text.substring(tagDrop.hashIdx + 1 + tagDrop.filter.length);
-    const newText = before + "#" + tagName + " " + after;
+    const newText = before + "@" + tagName + " " + after;
     caretRef.current = before.length + 1 + tagName.length + 1;
     upd("text", newText);
     setTagDrop(null);
@@ -796,7 +775,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         const parts = [];
         const tag = c.tag || "";
         if (tag && !OLD_NUM_TAG_SET.has(tag) && !OLD_PTAG_VALUES.has(tag)) {
-          parts.push("#" + tag);
+          parts.push("@" + tag);
         }
         const prefix = c.prefix || "";
         const mark = c.mark || "";
@@ -813,26 +792,38 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         c.text = parts.join(" ");
         delete c.tag; delete c.prefix; delete c.mark;
       }
-      // bold → <> 강조 라벨로 변환
+      // bold → ## 소제목으로 변환
       if (c.bold) {
-        if (c.text && !c.hdr) c.text = "<" + c.text + ">";
+        if (c.text && !c.hdr) c.text = "## " + c.text;
         delete c.bold;
       } else {
         delete c.bold;
       }
-      // hdr → == HEADER == 변환
+      // hdr → # 헤더 변환
       if (c.hdr) {
-        if (c.text) c.text = "== " + c.text + " ==";
+        if (c.text) c.text = "# " + c.text;
         delete c.hdr;
       } else {
         delete c.hdr;
       }
       // vis → *보이는텍스트* 변환 (vis=true이고 텍스트가 있으면 감싸기)
       if (c.vis !== undefined) {
-        if (c.vis && c.text && !c.text.startsWith("==")) {
+        if (c.vis && c.text && !c.text.startsWith("# ")) {
           c.text = "*" + c.text + "*";
         }
         delete c.vis;
+      }
+      // 구 문법 → 새 문법 변환 (== == → # , <소제목> → ## , #태그 → @태그)
+      if (c.text) {
+        const hm = c.text.match(/^==\s*(.+?)\s*==$/);
+        if (hm) c.text = "# " + hm[1];
+        else if (c.text.match(/^<[^<=>-].*[^=>-]>$/)) c.text = "## " + c.text.slice(1, -1);
+        // #태그 → @태그 (등록된 태그만)
+        const allT = DEFAULT_TAGS.map((t) => t.v).filter(Boolean);
+        allT.sort((a, b) => b.length - a.length);
+        for (const tn of allT) {
+          c.text = c.text.replace(new RegExp("#" + tn.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=\\s|$)", "g"), "@" + tn);
+        }
       }
     }); });
     return p;
@@ -1004,6 +995,28 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   // 인쇄 체크 토글 (모달 내부용)
   const togglePrintCheck = (key) => setPrintChecked((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
+  // img src를 base64 data URL로 변환
+  const inlineImages = async (html) => {
+    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
+    const promises = [];
+    let match;
+    while ((match = imgRegex.exec(html)) !== null) {
+      const src = match[1];
+      if (src.startsWith("data:")) continue;
+      promises.push(
+        fetch(src).then((r) => r.blob()).then((blob) => new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve({ src, dataUrl: reader.result });
+          reader.readAsDataURL(blob);
+        })).catch(() => null)
+      );
+    }
+    const results = (await Promise.all(promises)).filter(Boolean);
+    let out = html;
+    results.forEach(({ src, dataUrl }) => { out = out.split(src).join(dataUrl); });
+    return out;
+  };
+
   // 인쇄 실행 — 체크된 썸네일의 HTML을 추출
   const executePrint = async () => {
     if (!window.electronAPI || printChecked.size === 0) return;
@@ -1022,11 +1035,12 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     const pagesHtml = htmlParts.map((h) =>
       `<div style="width:210mm;min-height:297mm;display:flex;justify-content:center;align-items:center;page-break-after:always">${h}</div>`
     ).join("");
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    const rawHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
       <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}
       div:last-child{page-break-after:auto!important}</style>
       </head><body>${pagesHtml}</body></html>`;
+    const html = await inlineImages(rawHtml);
     await window.electronAPI.printPreview(html);
     setPrinting(false);
   };
@@ -1453,11 +1467,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   {/* 문법 힌트 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 12px", background: "#f8f8f8", borderBottom: "1px solid #eee" }}>
                     {[
-                      ["#", "태그"],
+                      ["@", "태그"],
                       ["[...]", "라벨"],
-                      ["<...>", "소제목"],
+                      ["## ", "소제목"],
                       ["*...*", "보임"],
-                      ["==..==", "헤더"],
+                      ["# ", "헤더"],
                       ["Alt+↑↓", "이동"],
                     ].map(([key, label]) => (
                       <span key={key} style={{ fontSize: 9, color: "#aaa", display: "flex", alignItems: "center", gap: 3 }}>
@@ -1557,10 +1571,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   setFullPrintExtra(null); // 임시 마운트 해제
                   if (!parts.length) { setPrinting(false); return; }
                   const body = parts.join("");
-                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+                  const rawHtml2 = `<!DOCTYPE html><html><head><meta charset="utf-8">
                     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
                     <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}div:last-child{page-break-after:auto!important}</style>
                     </head><body>${body}</body></html>`;
+                  const html = await inlineImages(rawHtml2);
                   await window.electronAPI.printPreview(html);
                   setPrinting(false);
                 };
@@ -1611,7 +1626,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       setSettings({ tags: nTags });
                       if (oldV && oldV !== nv && unit) {
                         // text 안의 #oldTag → #newTag 치환
-                        const replaceTag = (text) => text.replace(new RegExp("#" + oldV.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=\\s|$)", "g"), "#" + nv);
+                        const replaceTag = (text) => text.replace(new RegExp("@" + oldV.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=\\s|$)", "g"), "@" + nv);
                         updateUnit((u) => ({
                           ...u, rows: u.rows.map((r) => ({
                             ...r,

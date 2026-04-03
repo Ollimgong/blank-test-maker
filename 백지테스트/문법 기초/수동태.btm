@@ -4,11 +4,11 @@
     {
       "id": "23ecx3wl",
       "l": {
-        "text": "== SUMMARY ==",
+        "text": "# SUMMARY",
         "indent": 0
       },
       "r": {
-        "text": "== PRACTICE ==",
+        "text": "# PRACTICE",
         "indent": 0
       }
     },
@@ -74,7 +74,7 @@
         "indent": 0
       },
       "r": {
-        "text": "*[영작] I wash the dishes.*",
+        "text": "[영작] I wash the dishes.",
         "indent": 0
       }
     },
@@ -206,7 +206,7 @@
         "indent": 0
       },
       "r": {
-        "text": "[영 Grandma will bake the cake.",
+        "text": "[[영작]] Grandma will bake the cake.",
         "indent": 0
       }
     },
@@ -217,7 +217,7 @@
         "indent": 0
       },
       "r": {
-        "text": "*수동태The cake will be baked by Grandma.수동태The cake will be baked by Grandma.*",
+        "text": "*수동태The cake will be baked by Grandma.",
         "indent": 0
       }
     },
@@ -228,7 +228,7 @@
         "indent": 0
       },
       "r": {
-        "text": "**7 사람들은 미국에서 영어를 말한다.**",
+        "text": "[7)]사람들은 미국에서 영어를 말한다.**",
         "indent": 0
       }
     },
@@ -261,7 +261,7 @@
         "indent": 0
       },
       "r": {
-        "text": "",
+        "text": "뭐지 <= ",
         "indent": 0
       }
     },
@@ -272,18 +272,18 @@
         "indent": 0
       },
       "r": {
-        "text": "",
+        "text": "<= ",
         "indent": 0
       }
     },
     {
       "id": "zohb3xem",
       "l": {
-        "text": "",
+        "text": "ㅜㅜ=> <=-> => <- ",
         "indent": 0
       },
       "r": {
-        "text": "",
+        "text": "-> => <= <-",
         "indent": 0
       }
     },

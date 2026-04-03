@@ -4,11 +4,11 @@
     {
       "id": "0xkjiklr",
       "l": {
-        "text": "== SUMMARY ==",
+        "text": "# SUMMARY",
         "indent": 0
       },
       "r": {
-        "text": "== PRACTICE ==",
+        "text": "# PRACTICE",
         "indent": 0
       }
     },
@@ -19,7 +19,7 @@
         "indent": 0
       },
       "r": {
-        "text": "<영작연습>",
+        "text": "## 영작연습",
         "indent": 0
       }
     },
@@ -37,18 +37,18 @@
     {
       "id": "f2597j9c",
       "l": {
-        "text": "<주격관계대명사>",
+        "text": "## 주격관계대명사",
         "indent": 0
       },
       "r": {
-        "text": "1 (1) I know a boy.",
+        "text": "(1) I know a boy.",
         "indent": 0
       }
     },
     {
       "id": "2yjoolvp",
       "l": {
-        "text": "#개념 주격관계대명사는 관계대명사가 이끄는 절에서",
+        "text": "@개념 주격관계대명사는 관계대명사가 이끄는 절에서",
         "indent": 0
       },
       "r": {
@@ -70,7 +70,7 @@
     {
       "id": "r4r2gh59",
       "l": {
-        "text": "#형태 [-] 선행사가 사람일 때 : who",
+        "text": "@형태 [-] 선행사가 사람일 때 : who",
         "indent": 0
       },
       "r": {
@@ -92,7 +92,7 @@
     {
       "id": "em78bnuw",
       "l": {
-        "text": "#예문 She is a girl ( who likes pasta ).",
+        "text": "@예문 She is a girl ( who likes pasta ).",
         "indent": 0
       },
       "r": {
@@ -114,7 +114,7 @@
     {
       "id": "holivapf",
       "l": {
-        "text": "#예문 This is a house ( which is expensive ).",
+        "text": "@예문 This is a house ( which is expensive ).",
         "indent": 0
       },
       "r": {
@@ -136,7 +136,7 @@
     {
       "id": "epogs5zw",
       "l": {
-        "text": "*<목적격관계대명사>*",
+        "text": "## 목적격관계대명사",
         "indent": 0
       },
       "r": {
@@ -147,7 +147,7 @@
     {
       "id": "50wm83f1",
       "l": {
-        "text": "#개념 목적격관계대명사는 관계대명사가 이끄는 절에서",
+        "text": "@개념 목적격관계대명사는 관계대명사가 이끄는 절에서",
         "indent": 0
       },
       "r": {
@@ -169,7 +169,7 @@
     {
       "id": "ls6kl8j8",
       "l": {
-        "text": "#형태 [-] 선행사가 사람일 때 : who / whom",
+        "text": "@형태 [-] 선행사가 사람일 때 : who / whom",
         "indent": 0
       },
       "r": {
@@ -191,7 +191,7 @@
     {
       "id": "ks1yskwi",
       "l": {
-        "text": "#예문 She is a girl ( who(m) I like ).",
+        "text": "@예문 She is a girl ( who(m) I like ).",
         "indent": 0
       },
       "r": {
@@ -213,7 +213,7 @@
     {
       "id": "gf0pnaoc",
       "l": {
-        "text": "#예문 This is a house ( which Joy bought ).",
+        "text": "@예문 This is a house ( which Joy bought ).",
         "indent": 0
       },
       "r": {
@@ -235,7 +235,7 @@
     {
       "id": "okkpktj4",
       "l": {
-        "text": "*<소유격관계대명사>*",
+        "text": "## 소유격관계대명사",
         "indent": 0
       },
       "r": {
@@ -246,7 +246,7 @@
     {
       "id": "ewc8jcx0",
       "l": {
-        "text": "#개념 소유격관계대명사는 관계대명사가 이끄는 절에서",
+        "text": "@개념 소유격관계대명사는 관계대명사가 이끄는 절에서",
         "indent": 0
       },
       "r": {
@@ -257,7 +257,7 @@
     {
       "id": "2b06ar2y",
       "l": {
-        "text": "#형태 소유격",
+        "text": "@형태 소유격",
         "indent": 1
       },
       "r": {
@@ -268,7 +268,7 @@
     {
       "id": "aq6m4ymk",
       "l": {
-        "text": "#형태 선행사와 상관없이 whose",
+        "text": "@형태 선행사와 상관없이 whose",
         "indent": 0
       },
       "r": {
@@ -279,7 +279,7 @@
     {
       "id": "xdcjs7z8",
       "l": {
-        "text": "#예문 She is a girl ( whose hair is long ).",
+        "text": "@예문 She is a girl ( whose hair is long ).",
         "indent": 0
       },
       "r": {
@@ -290,7 +290,7 @@
     {
       "id": "oapllmpc",
       "l": {
-        "text": "#예문 This is a house ( whose roof is red ).",
+        "text": "@예문 This is a house ( whose roof is red ).",
         "indent": 0
       },
       "r": {
@@ -301,18 +301,18 @@
     {
       "id": "11f92nks",
       "l": {
-        "text": "중간에도 [라벨]을 넣을 수 있고, #예문 도 가능합니다.",
+        "text": "중간에도 [라벨]을 넣을 수 있고, @예문 도 가능합니다.",
         "indent": 0
       },
       "r": {
-        "text": "*여기 안에서는 [마커] 안됨 #개념 태그도 안됨*",
+        "text": "*여기 안에서는 [마커] 안됨 @개념 태그도 안됨*",
         "indent": 0
       }
     },
     {
       "id": "nlcombem",
       "l": {
-        "text": "#형태 소렇게..",
+        "text": "@형태 소렇게..",
         "indent": 0
       },
       "r": {
