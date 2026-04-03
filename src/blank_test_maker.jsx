@@ -193,7 +193,7 @@ function CellArrows({ onUp, onDown, first, last }) {
   );
 }
 
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows }) {
+function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus }) {
   const indLv = cell.indent || 0;
   const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
   const TB = (active, onClick, title, children, color, textColor) => (
@@ -206,21 +206,22 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
   );
   return (
     <div style={{
-      background: "#f5f6f8", padding: "4px 5px",
+      background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "4px 5px",
       display: "flex", alignItems: "center", gap: 3,
-      borderLeft: cell.hdr ? "3px solid #00391e" : "3px solid transparent",
+      borderLeft: cell.hdr ? "3px solid #00391e" : isFocused ? "3px solid #3b82f6" : "3px solid transparent",
       opacity: 1,
     }}>
       <span style={{ fontSize: 10, color: "#bbb", fontWeight: 600, width: 16, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
       {indLv > 0 && <div style={{ width: indLv * 16, flexShrink: 0 }} />}
       <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
       <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
+        onFocus={onCellFocus}
         onKeyDown={(e) => {
           if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
           if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelector("input"); if (next) next.focus(); }
           if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
         }}
-        style={{ flex: 1, padding: "3px 6px", border: "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+        style={{ flex: 1, padding: "3px 6px", border: isFocused ? "1px solid #3b82f6" : "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
       {cell.hdr && <span style={{ fontSize: 10, fontWeight: 800, color: "#00391e", background: "#e8efe9", borderRadius: 3, padding: "1px 5px", flexShrink: 0, letterSpacing: 0.5 }}>H</span>}
       <div className="ec-hover" style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
         {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#00391e", "#fff")}
@@ -349,18 +350,18 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
 }
 
 /* ═══════ InlinePreviewCell — 편집 행과 나란히 보여주는 셀 미리보기 ═══════ */
-function InlinePreviewCell({ cell, isBlank, tags, numColor, onClick }) {
+function InlinePreviewCell({ cell, isBlank, tags, numColor, onClick, isFocused }) {
   const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
   const show = !isBlank || cell.vis;
   const tc = tagColor(cell.tag, tags, numColor);
   const indLv = cell.indent || 0;
   if (cell.hdr) return (
-    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 10px", background: "#fff", fontWeight: 800, fontSize: 12, color: "#00391e", letterSpacing: 2, overflow: "hidden", borderBottom: "2px solid #c8d9ca", cursor: "pointer" }}>
+    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 10px", background: isFocused ? "#eef4ff" : "#fff", fontWeight: 800, fontSize: 12, color: "#00391e", letterSpacing: 2, overflow: "hidden", borderBottom: "2px solid #c8d9ca", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
     </div>
   );
   return (
-    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: `0 10px 0 ${10 + indLv * 16}px`, background: isEmpty ? "#fafafa" : "#fff", overflow: "hidden", cursor: "pointer" }}>
+    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: `0 10px 0 ${10 + indLv * 16}px`, background: isFocused ? "#eef4ff" : (isEmpty ? "#fafafa" : "#fff"), overflow: "hidden", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
       {cell.tag && (
         <span style={{ padding: "1px 7px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
       )}
@@ -486,6 +487,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState("answer"); // "answer" | "worksheet"
   const [editCol, setEditCol] = useState("l"); // "l" = 1열, "r" = 2열
+  const [focusedRowId, setFocusedRowId] = useState(null); // 현재 편집 중인 행 ID
   const [fullPreview, setFullPreview] = useState(null); // null | "answer" | "blank"
   const [printZoom, setPrintZoom] = useState(100);
   const editorScrollRef = useRef(null);
@@ -1039,7 +1041,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           #print-area{box-shadow:none!important;border-radius:0!important;margin:0!important}
           .no-print{display:none!important}
         }
-        input:focus,select:focus{border-color:#f5a855!important}
+        input:focus,select:focus{border-color:#3b82f6!important}
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
         .ec-hover{opacity:0;transition:opacity .15s}
         [data-side]:hover .ec-hover{opacity:1}
@@ -1146,7 +1148,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#ec6619", flexShrink: 0, letterSpacing: 0.5 }}>단원명</span>
                     <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="단원명을 입력하세요"
                       style={{ flex: 1, fontSize: 16, fontWeight: 800, border: "none", outline: "none", background: "transparent", padding: "4px 8px", color: "#111", borderBottom: "2px solid #eee", borderRadius: 0 }}
-                      onFocus={(e) => { e.target.style.borderBottomColor = "#ec6619"; }}
+                      onFocus={(e) => { e.target.style.borderBottomColor = "#3b82f6"; }}
                       onBlur={(e) => { e.target.style.borderBottomColor = "#eee"; }} />
                     <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#888", flexShrink: 0 }}>A4 미리보기</button>
                   </div>
@@ -1166,13 +1168,13 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   {/* 3행: 1열|2열 탭 (Edit/Preview 동일 디자인) */}
                   <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e5e7eb", height: 24, alignItems: "stretch" }}>
                     <div style={{ flex: 1, display: "flex" }}>
-                      <button onClick={() => setEditCol("l")} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "l" ? "#00391e" : "#e8e8e8", color: editCol === "l" ? "#fff" : "#aaa", borderBottom: editCol === "l" ? "2px solid #00391e" : "2px solid transparent" }}>1열</button>
-                      <button onClick={() => setEditCol("r")} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "r" ? "#ec6619" : "#e8e8e8", color: editCol === "r" ? "#fff" : "#aaa", borderBottom: editCol === "r" ? "2px solid #ec6619" : "2px solid transparent" }}>2열</button>
+                      <button onClick={() => { setEditCol("l"); setFocusedRowId(null); }} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "l" ? "#00391e" : "#e8e8e8", color: editCol === "l" ? "#fff" : "#aaa", borderBottom: editCol === "l" ? "2px solid #00391e" : "2px solid transparent" }}>1열</button>
+                      <button onClick={() => { setEditCol("r"); setFocusedRowId(null); }} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "r" ? "#ec6619" : "#e8e8e8", color: editCol === "r" ? "#fff" : "#aaa", borderBottom: editCol === "r" ? "2px solid #ec6619" : "2px solid transparent" }}>2열</button>
                     </div>
                     <div style={{ width: 684, flexShrink: 0, display: "flex", borderLeft: "3px solid #bbb", boxSizing: "border-box" }}>
-                      <button onClick={() => setEditCol("l")} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "l" ? "#e8efe9" : "#e8e8e8", color: editCol === "l" ? "#00391e" : "#ccc", borderBottom: editCol === "l" ? "2px solid #00391e" : "2px solid transparent" }}>1열</button>
+                      <button onClick={() => { setEditCol("l"); setFocusedRowId(null); }} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "l" ? "#e8efe9" : "#e8e8e8", color: editCol === "l" ? "#00391e" : "#ccc", borderBottom: editCol === "l" ? "2px solid #00391e" : "2px solid transparent" }}>1열</button>
                       <div style={{ width: 1, background: "#ddd" }} />
-                      <button onClick={() => setEditCol("r")} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "r" ? "#fef3e8" : "#e8e8e8", color: editCol === "r" ? "#ec6619" : "#ccc", borderBottom: editCol === "r" ? "2px solid #ec6619" : "2px solid transparent" }}>2열</button>
+                      <button onClick={() => { setEditCol("r"); setFocusedRowId(null); }} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "r" ? "#fef3e8" : "#e8e8e8", color: editCol === "r" ? "#ec6619" : "#ccc", borderBottom: editCol === "r" ? "2px solid #ec6619" : "2px solid transparent" }}>2열</button>
                     </div>
                   </div>
                   </div>
@@ -1183,19 +1185,19 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                         <div style={{ display: "flex", width: "200%", transform: editCol === "l" ? "translateX(0)" : "translateX(-50%)", transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }}>
                           <div data-side="l" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "l"} onCellFocus={() => setFocusedRowId(row.id)} />
                           </div>
                           <div data-side="r" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} />
+                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "r"} onCellFocus={() => setFocusedRowId(row.id)} />
                           </div>
                         </div>
                       </div>
                       {/* Preview 영역: 항상 양쪽 표시 */}
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "3px solid #bbb", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} onClick={() => { if (editCol !== "l") setEditCol("l"); else { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="l"] input`); if (r) r.focus(); } }} />
+                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "l"} onClick={() => { setEditCol("l"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="l"] input`); if (r) r.focus(); }, editCol !== "l" ? 320 : 0); }} />
                       </div>
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "1px solid #e5e7eb", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} onClick={() => { if (editCol !== "r") setEditCol("r"); else { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="r"] input`); if (r) r.focus(); } }} />
+                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "r"} onClick={() => { setEditCol("r"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="r"] input`); if (r) r.focus(); }, editCol !== "r" ? 320 : 0); }} />
                       </div>
                     </div>
                   ))}
