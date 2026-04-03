@@ -34,10 +34,10 @@
   title: "수동태",
   rows: [{               // 30행 고정
     id,
-    l: { tag, mark, text, vis, bold, hdr, indent },  // 좌우 동일 구조
-    r: { tag, mark, text, vis, bold, hdr, indent }   // indent=0/1/2 (들여쓰기 레벨)
+    l: { prefix, tag, text, vis, bold, hdr, indent },  // 좌우 동일 구조
+    r: { prefix, tag, text, vis, bold, hdr, indent }   // indent=0/1/2 (현재 미사용, 향후 재구현 예정)
   }],
-  settings: { logo, slogan, customFont, customFontName, tags, numTagColor }
+  settings: { logo, slogan, customFont, customFontName, tags }
 }
 ```
 
@@ -58,10 +58,10 @@
 
 ## 코드 구조 (blank_test_maker.jsx 내부)
 ```
-상수/헬퍼          DEFAULT_TAGS, NO_TAG, tagColor(), emptyRow(), hdrRow(), padRows()
+상수/헬퍼          DEFAULT_TAGS, PREFIX_NUMBERS, PREFIX_BULLETS, tagColor(), emptyRow(), hdrRow(), padRows()
 행 상수            TOTAL_ROWS=30, ROW_H=27
-CellProps          셀 속성 팝오버 (태그/마커/들여쓰기 선택)
-EditorCell         편집 셀 (H/B/표시 버튼은 hover 시에만 표시)
+CellProps          셀 속성 팝오버 (접두사/태그 선택)
+EditorCell         편집 셀 — 편집모드(2줄) / 컴팩트모드(1줄) 토글
 InlinePreviewCell  편집 행과 나란히 보여주는 셀 미리보기 (ANSWER/WORKSHEET)
 Preview            A4 고정 크기 미리보기 (인쇄용, 740x1046px)
 PrintThumbnails    출력 모달 썸네일 그리드 (선택된 페이지만, 그룹별 표시)
@@ -84,10 +84,11 @@ App (default)      메인 앱 — 헤더 + 통합 사이드바 + 에디터
 └──────┴────────────────────────────────────────────┘
 ```
 
-## 들여쓰기
-- 단순 왼쪽 패딩 방식 (indent 0/1/2 → 0/16/32px)
-- Tab/Shift+Tab으로 조절, 제한 없음
-- ghost 상속 시스템: 들여쓰기된 행에서 부모 태그/마커를 invisible spacer로 렌더링해 텍스트 정렬 (getGhosts 함수)
+## 접두사/태그 시스템
+- **접두사 (prefix)**: 텍스트 앞 인라인 표시 (1-9, -, (1), (2), (3), ※, ★, [영작] 등). Plain text 렌더링.
+- **태그 (tag)**: 분류 뱃지 (개념, 형태, 예문, 주의, 예시 등). 색상 뱃지 렌더링. 설정에서 커스텀 가능.
+- CellProps 팝오버: 접두사 섹션(번호+기호+커스텀) / 태그 섹션(분류태그)
+- 편집모드(2줄)/컴팩트모드(1줄) 토글 가능 (Edit 헤더 세그먼트 버튼)
 
 ## Electron 구조
 - `electron/main.js`: 작업 폴더 스캔, 파일 CRUD, 그룹(폴더) 관리, printToPDF, 마지막 폴더 기억
@@ -100,11 +101,42 @@ App (default)      메인 앱 — 헤더 + 통합 사이드바 + 에디터
 - 편집 시 1초 debounce 자동저장
 
 ## 미해결 백로그
-- **들여쓰기 정렬 개선**: 현재 단순 패딩이라 부모 태그/마커 너비만큼 정확히 정렬되지 않음. 더 나은 정렬 방식 필요.
+- **들여쓰기 시스템 재구현**: 아래 "들여쓰기 시도 기록" 참조. 현재 indent 필드는 데이터에 존재하지만 UI/기능은 전부 제거된 상태. 재설계 필요.
 - **사이드바 너비 개선**: 210px 고정 → 넓히거나 리사이즈 가능하게. 파일명 잘림 문제.
 - **파일 컨텍스트 메뉴 개선**: ⋯ 버튼이 작고 발견하기 어려움. 우클릭 메뉴 추가 or hover 시 더 명확하게.
 - **빈 행 구분 강화**: 프리뷰에서 내용 있는 행과 빈 행의 시각 차이 강화.
 - **인쇄 미리보기 창 성능**: PDF 생성 → 미리보기 창 표시까지 체감 지연 있음. Electron printToPDF 파이프라인 한계.
+
+## 들여쓰기 시도 기록 (실패 → 롤백)
+
+### 목표
+들여쓰기된 행이 부모 행과 시각적으로 연결되어 계층 구조가 한눈에 보이게 하는 것.
+
+### 시도 1: └ 문자 가이드 (기존)
+- indent 0/1/2 레벨에 따라 └ 문자를 반복 표시 (`└└`)
+- **문제**: 어디에 맞춰져 있는지 모호, 부모와의 관계가 불명확
+
+### 시도 2: 세로선 가이드 (이번 세션)
+- └ 대신 indent 레벨별 세로 선(`borderLeft: 2px solid`)을 셀 전체 높이로 표시
+- 연속된 들여쓰기 행이면 선이 쭉 이어져 부모-자식 관계를 시각화
+- 부모 행의 태그 색상을 선 색상으로 사용
+- **문제**:
+  1. 프리뷰(A4)에서 들여쓰기가 제대로 반영 안 됨 (ghost 시스템과 충돌)
+  2. 접두사/태그 분리 리팩터링 후 ghost 시스템의 `mark` → `prefix` 전환이 프리뷰 정렬을 깨뜨림
+  3. 에디터와 프리뷰의 들여쓰기 표현 방식이 근본적으로 달라 동기화가 어려움
+
+### Ghost 시스템이란?
+- A4 프리뷰에서 들여쓰기된 행의 텍스트를 부모 행과 정렬하기 위한 시스템
+- 부모의 접두사/태그 너비만큼 invisible span(visibility:hidden)을 삽입해 자식 텍스트 시작점을 맞춤
+- `getGhosts(rows, idx, side)` 함수가 각 indent 레벨의 부모를 찾아 `{ prefix, tag }` 반환
+- **근본적 한계**: 접두사/태그 텍스트 길이에 따라 너비가 달라져 정확한 정렬이 어려움
+
+### 재구현 시 고려사항
+1. **에디터와 프리뷰의 들여쓰기 표현을 통일**해야 함 (현재는 에디터=세로선, 프리뷰=ghost 패딩으로 따로 놀았음)
+2. **고정 너비 패딩 방식**이 ghost보다 안정적일 수 있음 (indent 레벨 * 고정px)
+3. 들여쓰기는 접두사/태그와 독립적으로 동작해야 함 (접두사가 있든 없든 같은 indent 너비)
+4. A4 인쇄 시 ROW_H=27px 제한 내에서 들여쓰기 표현이 가능해야 함
+5. `indent` 필드(0/1/2)는 데이터에 이미 존재하므로 UI만 다시 구현하면 됨
 
 ## 커밋/푸시 전 체크리스트
 - CLAUDE.md의 내용이 현재 코드와 일치하는지 확인하고, 달라진 부분이 있으면 반영한 뒤 커밋할 것.
