@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import logoImg from "./assets/logo.png";
 
 /* ═══════ helpers ═══════ */
@@ -117,13 +118,6 @@ function CellProps({ cell, upd, tags, numColor }) {
   const nc = numColor || DEFAULT_NUM_COLOR;
   const tc = tagColor(cell.tag, tags, nc);
   const indLv = cell.indent || 0;
-  const hasAny = cell.tag || cell.mark || indLv > 0;
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
   const mkBtn = (v, c, tx, label) => (
     <button key={v} onClick={() => upd("tag", v)} style={{
       padding: "3px 8px", borderRadius: 4, border: "none",
@@ -132,27 +126,44 @@ function CellProps({ cell, upd, tags, numColor }) {
       outline: cell.tag === v ? "2px solid #111" : "none", outlineOffset: 1,
     }}>{label}</button>
   );
+  // 태그/마커가 있으면 뱃지로 표시, 없으면 "태그" 버튼
+  const trigger = (cell.tag || cell.mark) ? (
+    <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0 }}>
+      {cell.tag && <span style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "16px" }}>{cell.tag}</span>}
+      {cell.mark && <span style={{ padding: "1px 4px", borderRadius: 3, background: "#f0e6dc", color: "#7a3d10", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "16px" }}>{cell.mark}</span>}
+    </div>
+  ) : (
+    <button onClick={() => setOpen(!open)} style={{
+      height: 20, padding: "0 5px", border: "1px dashed #ccc", borderRadius: 3, cursor: "pointer",
+      fontSize: 9, fontWeight: 600, flexShrink: 0, lineHeight: 1,
+      background: "transparent", color: "#bbb",
+    }}>태그</button>
+  );
+  const popRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => {
+      if (ref.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [open]);
+  const getPopPos = () => {
+    if (!ref.current) return { top: 0, left: 0 };
+    const r = ref.current.getBoundingClientRect();
+    return { top: r.bottom + 2, left: r.left };
+  };
   return (
-    <div ref={ref} style={{ position: "relative", flexShrink: 0, display: "flex", alignItems: "center", gap: 2 }}>
-      {/* 팝오버 토글 */}
-      <button onClick={() => setOpen(!open)} style={{
-        width: 22, height: 22, border: "none", borderRadius: 3, cursor: "pointer",
-        fontSize: 10, fontWeight: 600, flexShrink: 0, padding: 0, lineHeight: 1,
-        background: open ? "#f0f0f0" : "transparent", color: "#aaa",
-      }}>{open ? "▲" : "▼"}</button>
-      {cell.tag && (
-        <span onClick={() => setOpen(!open)} style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.tag}</span>
-      )}
-      {cell.mark && (
-        <span onClick={() => setOpen(!open)} style={{ padding: "1px 5px", borderRadius: 3, background: "#f0e6dc", color: "#7a3d10", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, cursor: "pointer" }}>{cell.mark}</span>
-      )}
-      {open && (
-        <div style={{
-          position: "absolute", top: "110%", left: 0, zIndex: 50,
+    <div ref={ref} style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+      {trigger}
+      {open && createPortal(
+        <div ref={popRef} style={{
+          position: "fixed", ...getPopPos(), zIndex: 1000,
           background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.18)",
-          padding: 8, width: 240, marginTop: 2,
-        }} onClick={(e) => e.stopPropagation()}>
-          {/* 태그 */}
+          padding: 8, width: 240,
+        }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 4 }}>태그</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 6 }}>
             {mkBtn("", "", "", "없음")}
@@ -161,11 +172,9 @@ function CellProps({ cell, upd, tags, numColor }) {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
             {(tags || DEFAULT_TAGS).map((t) => mkBtn(t.v, t.c, t.tx, t.v))}
           </div>
-          {/* 마커 */}
           <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 3 }}>마커</div>
           <input value={cell.mark} onChange={(e) => upd("mark", e.target.value)} placeholder="예: [영작], (1)"
             style={{ width: "100%", padding: "4px 6px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
-          {/* 들여쓰기 */}
           <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 3 }}>들여쓰기</div>
           <div style={{ display: "flex", gap: 3 }}>
             {[0, 1, 2].map((lv) => (
@@ -176,7 +185,8 @@ function CellProps({ cell, upd, tags, numColor }) {
               }}>{lv === 0 ? "없음" : `${lv}단계`}</button>
             ))}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -193,40 +203,43 @@ function CellArrows({ onUp, onDown, first, last }) {
   );
 }
 
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus }) {
+function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus, onSwitchCol }) {
   const indLv = cell.indent || 0;
-  const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
   const TB = (active, onClick, title, children, color, textColor) => (
     <button onClick={onClick} title={title} style={{
-      width: 24, height: 24, border: "none", borderRadius: 3, cursor: "pointer",
-      fontSize: 11, fontWeight: 800, flexShrink: 0, padding: 0, lineHeight: 1,
-      background: active ? (color || "#1f2937") : "#f0f0f0",
-      color: active ? (textColor || "#fff") : "#bbb",
+      width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
+      fontSize: 10, fontWeight: 800, flexShrink: 0, padding: 0, lineHeight: 1,
+      background: active ? (color || "#1f2937") : "transparent",
+      color: active ? (textColor || "#fff") : "#ccc",
     }}>{children}</button>
   );
   return (
     <div style={{
-      background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "4px 5px",
-      display: "flex", alignItems: "center", gap: 3,
+      background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "3px 4px",
+      display: "flex", alignItems: "center", gap: 2,
       borderLeft: cell.hdr ? "3px solid #00391e" : isFocused ? "3px solid #3b82f6" : "3px solid transparent",
-      opacity: 1,
     }}>
-      <span style={{ fontSize: 10, color: "#bbb", fontWeight: 600, width: 16, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
+      <span style={{ fontSize: 9, color: "#bbb", fontWeight: 600, width: 14, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
       {indLv > 0 && <div style={{ width: indLv * 16, flexShrink: 0 }} />}
       <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
       <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
         onFocus={onCellFocus}
         onKeyDown={(e) => {
+          if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); onSwitchCol?.(e.key === "1" ? "l" : "r"); return; }
+          if (e.ctrlKey && e.key === "b") { e.preventDefault(); upd("bold", !cell.bold); return; }
+          if (e.ctrlKey && e.key === "h") { e.preventDefault(); upd("hdr", !cell.hdr); return; }
+          if (e.ctrlKey && e.key === "d") { e.preventDefault(); upd("vis", !cell.vis); return; }
+          if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); onUp(); return; }
+          if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); onDown(); return; }
           if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
           if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelector("input"); if (next) next.focus(); }
           if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
         }}
         style={{ flex: 1, padding: "3px 6px", border: isFocused ? "1px solid #3b82f6" : "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
-      {cell.hdr && <span style={{ fontSize: 10, fontWeight: 800, color: "#00391e", background: "#e8efe9", borderRadius: 3, padding: "1px 5px", flexShrink: 0, letterSpacing: 0.5 }}>H</span>}
-      <div className="ec-hover" style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-        {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더", "H", "#00391e", "#fff")}
-        {TB(cell.bold, () => upd("bold", !cell.bold), "굵게", "B")}
-        {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (기본: 숨김)", "표시", "#f59e0b", "#78350f")}
+      <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+        {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더 (Ctrl+H)", "H", "#00391e", "#fff")}
+        {TB(cell.bold, () => upd("bold", !cell.bold), "굵게 (Ctrl+B)", "B", "#1f2937", "#fff")}
+        {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (Ctrl+D)", "표시", "#f59e0b", "#78350f")}
         <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
       </div>
     </div>
@@ -1043,8 +1056,6 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         }
         input:focus,select:focus{border-color:#3b82f6!important}
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
-        .ec-hover{opacity:0;transition:opacity .15s}
-        [data-side]:hover .ec-hover{opacity:1}
       `}</style>
 
       {/* ═══ 최상위: 로고 + 모드 탭 ═══ */}
@@ -1165,7 +1176,23 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       </div>
                     </div>
                   </div>
-                  {/* 3행: 1열|2열 탭 (Edit/Preview 동일 디자인) */}
+                  {/* 단축키 힌트 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 12px", background: "#f8f8f8", borderBottom: "1px solid #eee" }}>
+                    {[
+                      ["Ctrl+1/2", "열 전환"],
+                      ["Ctrl+H", "헤더"],
+                      ["Ctrl+B", "굵게"],
+                      ["Ctrl+D", "표시"],
+                      ["Alt+↑↓", "행 이동"],
+                      ["Tab", "들여쓰기"],
+                    ].map(([key, label]) => (
+                      <span key={key} style={{ fontSize: 9, color: "#aaa", display: "flex", alignItems: "center", gap: 3 }}>
+                        <kbd style={{ padding: "0 4px", borderRadius: 3, background: "#e8e8e8", color: "#777", fontSize: 9, fontFamily: "inherit", fontWeight: 600, lineHeight: "16px" }}>{key}</kbd>
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                  {/* 1열|2열 탭 (Edit/Preview 동일 디자인) */}
                   <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "1px solid #e5e7eb", height: 24, alignItems: "stretch" }}>
                     <div style={{ flex: 1, display: "flex" }}>
                       <button onClick={() => { setEditCol("l"); setFocusedRowId(null); }} style={{ flex: 1, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, transition: "all 0.2s", background: editCol === "l" ? "#00391e" : "#e8e8e8", color: editCol === "l" ? "#fff" : "#aaa", borderBottom: editCol === "l" ? "2px solid #00391e" : "2px solid transparent" }}>1열</button>
@@ -1185,10 +1212,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                         <div style={{ display: "flex", width: "200%", transform: editCol === "l" ? "translateX(0)" : "translateX(-50%)", transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }}>
                           <div data-side="l" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "l"} onCellFocus={() => setFocusedRowId(row.id)} />
+                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "l"} onCellFocus={() => setFocusedRowId(row.id)} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} />
                           </div>
                           <div data-side="r" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "r"} onCellFocus={() => setFocusedRowId(row.id)} />
+                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "r"} onCellFocus={() => setFocusedRowId(row.id)} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} />
                           </div>
                         </div>
                       </div>
