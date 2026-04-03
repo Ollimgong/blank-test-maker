@@ -29,6 +29,41 @@ const emptyRow = () => ({
   r: { tag: "", mark: "", text: "", vis: false, bold: false, hdr: false, indent: 0 },
 });
 
+/* ═══════ ghost indent: 부모 태그/마커를 invisible로 렌더링해 텍스트 정렬 ═══════ */
+const getGhosts = (rows, idx, side) => {
+  const cell = rows[idx][side];
+  const level = cell.indent || 0;
+  if (level === 0) return [];
+  // 각 indent 단계별로 해당 레벨의 조상을 찾음
+  const ghosts = [];
+  for (let lv = 1; lv <= level; lv++) {
+    let found = false;
+    for (let i = idx - 1; i >= 0; i--) {
+      const c = rows[i][side];
+      const ci = c.indent || 0;
+      if (ci === lv - 1) {
+        ghosts.push({ tag: c.tag, mark: c.mark });
+        found = true;
+        break;
+      }
+      if (ci < lv - 1) break; // 더 상위로 올라갔으면 중단
+    }
+    if (!found) {
+      // 정확한 레벨 조상이 없으면 가장 가까운 하위 indent 조상 사용
+      for (let i = idx - 1; i >= 0; i--) {
+        const c = rows[i][side];
+        if ((c.indent || 0) < lv) {
+          ghosts.push({ tag: c.tag, mark: c.mark });
+          found = true;
+          break;
+        }
+      }
+      if (!found) ghosts.push({ tag: "", mark: "" });
+    }
+  }
+  return ghosts;
+};
+
 /* ═══════ row helpers ═══════ */
 const TOTAL_ROWS = 30; // A4 fixed row count
 const padRows = (rows) => {
@@ -111,35 +146,179 @@ const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
 const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
 
-/* ═══════ CellProps (태그 + 마커 + 들여쓰기 통합 팝오버) ═══════ */
-function CellProps({ cell, upd, tags, numColor }) {
+/* ═══════ CellProps (태그 + 마커 팝오버) ═══════ */
+const MARKER_PRESETS = ["[영작]", "(1)", "(2)", "(3)", "※", "★"];
+function CellProps({ cell, upd, tags, numColor, onClose, hideTrigger }) {
   const [open, setOpen] = useState(false);
+  const [customMark, setCustomMark] = useState("");
+  const [focusIdx, setFocusIdx] = useState(0);
   const ref = useRef(null);
   const nc = numColor || DEFAULT_NUM_COLOR;
   const tc = tagColor(cell.tag, tags, nc);
-  const indLv = cell.indent || 0;
-  const mkBtn = (v, c, tx, label) => (
-    <button key={v} onClick={() => upd("tag", v)} style={{
-      padding: "3px 8px", borderRadius: 4, border: "none",
-      background: v ? c : "#f3f4f6", color: v ? tx : "#6b7280",
-      fontSize: 13, fontWeight: 600, cursor: "pointer",
-      outline: cell.tag === v ? "2px solid #111" : "none", outlineOffset: 1,
-    }}>{label}</button>
-  );
-  // 태그/마커가 있으면 뱃지로 표시, 없으면 "태그" 버튼
-  const trigger = (cell.tag || cell.mark) ? (
-    <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 2, cursor: "pointer", flexShrink: 0 }}>
-      {cell.tag && <span style={{ padding: "1px 6px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "16px" }}>{cell.tag}</span>}
-      {cell.mark && <span style={{ padding: "1px 4px", borderRadius: 3, background: "#f0e6dc", color: "#7a3d10", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "16px" }}>{cell.mark}</span>}
+  const hasTag = !!cell.tag;
+  const hasMark = !!cell.mark;
+  const hasAny = hasTag || hasMark;
+
+  // 선택 가능한 항목 목록 구성: [{ type, value, ... }, ...]
+  const allTags = tags || DEFAULT_TAGS;
+  const items = [
+    ...NUM_TAGS.map((n) => ({ type: "tag", v: n, c: nc, tx: "#fff", label: n })),
+    ...allTags.map((t) => ({ type: "tag", v: t.v, c: t.c, tx: t.tx, label: t.v })),
+    ...MARKER_PRESETS.map((m) => ({ type: "marker", v: m })),
+    { type: "custom" }, // 커스텀 마커 입력란
+  ];
+  const customInputRef = useRef(null);
+
+  // 태그 토글: 같은 태그 클릭 시 해제
+  const toggleTag = (v) => upd("tag", cell.tag === v ? "" : v);
+  const toggleMark = (v) => { upd("mark", cell.mark === v ? "" : v); };
+
+  // 현재 포커스된 항목 선택(Enter)
+  const selectItem = (idx) => {
+    const item = items[idx];
+    if (!item) return;
+    if (item.type === "tag") toggleTag(item.v);
+    else if (item.type === "marker") toggleMark(item.v);
+    else if (item.type === "custom") customInputRef.current?.focus();
+  };
+
+  // 팝오버 열릴 때 focusIdx 초기화, 닫힐 때 onClose 콜백
+  const doOpen = (val) => {
+    const next = typeof val === "function" ? val(open) : val;
+    if (next && !open) setFocusIdx(0);
+    if (!next && open) onClose?.();
+    setOpen(next);
+  };
+
+  // 아이템 인덱스 계산
+  const numTagStart = 0;
+  const namedTagStart = NUM_TAGS.length;
+  const markerStart = NUM_TAGS.length + allTags.length;
+  const customIdx = items.length - 1;
+
+  // 섹션 기반 2D 네비게이션: 각 섹션 = 시각적 행 그룹
+  const sections = [
+    NUM_TAGS.map((_, i) => i),                       // 번호 태그
+    allTags.map((_, i) => namedTagStart + i),         // 분류 태그
+    MARKER_PRESETS.map((_, i) => markerStart + i),    // 마커 프리셋
+    [customIdx],                                      // 커스텀 입력
+  ];
+  const findSection = (idx) => {
+    for (let s = 0; s < sections.length; s++) {
+      const pos = sections[s].indexOf(idx);
+      if (pos !== -1) return { s, pos };
+    }
+    return { s: 0, pos: 0 };
+  };
+  const moveVertical = (dir) => {
+    const { s, pos } = findSection(focusIdx);
+    const ns = Math.max(0, Math.min(sections.length - 1, s + dir));
+    if (ns === s) return focusIdx;
+    // 같은 비율의 위치로 이동
+    const ratio = sections[s].length > 1 ? pos / (sections[s].length - 1) : 0;
+    const newPos = Math.round(ratio * (sections[ns].length - 1));
+    return sections[ns][newPos];
+  };
+
+  // 팝오버 키보드 핸들러
+  const handlePopKey = (e) => {
+    // 커스텀 입력란에 포커스 중
+    if (e.target === customInputRef.current) {
+      if (e.key === "Escape") { e.preventDefault(); doOpen(false); return; }
+      if (e.key === "Enter" && customMark.trim()) {
+        e.preventDefault();
+        upd("mark", customMark.trim());
+        setCustomMark("");
+        return;
+      }
+      if (e.key === "ArrowUp") { e.preventDefault(); setFocusIdx(moveVertical(-1)); customInputRef.current?.blur(); return; }
+      return;
+    }
+
+    if (e.key === "Escape") { e.preventDefault(); doOpen(false); return; }
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      setFocusIdx((i) => (i + 1) % items.length);
+      return;
+    }
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      setFocusIdx((i) => (i - 1 + items.length) % items.length);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusIdx(moveVertical(1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusIdx(moveVertical(-1));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      selectItem(focusIdx);
+      return;
+    }
+  };
+
+  // 포커스 관리: focusIdx가 custom이면 input에 포커스, 아니면 popRef에 포커스
+  const popRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const item = items[focusIdx];
+    if (item?.type === "custom") {
+      customInputRef.current?.focus();
+    } else {
+      // popRef에 포커스 (키보드 이벤트 수신용)
+      popRef.current?.focus();
+    }
+  }, [open, focusIdx]);
+
+  const mkTagBtn = (v, c, tx, label, itemIdx) => {
+    const sel = cell.tag === v;
+    const focused = open && focusIdx === itemIdx;
+    return (
+      <button key={v} onClick={() => { toggleTag(v); setFocusIdx(itemIdx); }}
+        onMouseEnter={() => setFocusIdx(itemIdx)}
+        style={{
+          padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+          background: v ? c : "#f3f4f6", color: v ? tx : "#6b7280",
+          fontSize: 12, fontWeight: 600, lineHeight: "18px",
+          border: sel ? "2px solid #111" : "2px solid transparent",
+          opacity: sel ? 1 : 0.75, transition: "all .1s",
+          outline: focused ? "2px solid #3b82f6" : "none", outlineOffset: 1,
+        }}
+      >{label}</button>
+    );
+  };
+
+  // 트리거: 뱃지 또는 + 버튼
+  const trigger = hasAny ? (
+    <div onClick={() => doOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer", flexShrink: 0 }}>
+      {hasTag && <span style={{
+        padding: "1px 7px", borderRadius: 4, background: tc.c, color: tc.tx,
+        fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "18px",
+      }}>{cell.tag}</span>}
+      {hasMark && <span style={{
+        padding: "1px 5px", borderRadius: 4, background: "#fef3c7", color: "#92400e",
+        fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "18px",
+      }}>{cell.mark}</span>}
     </div>
   ) : (
-    <button onClick={() => setOpen(!open)} style={{
-      height: 20, padding: "0 5px", border: "1px dashed #ccc", borderRadius: 3, cursor: "pointer",
-      fontSize: 9, fontWeight: 600, flexShrink: 0, lineHeight: 1,
-      background: "transparent", color: "#bbb",
-    }}>태그</button>
+    <button onClick={() => doOpen(!open)} title="태그/마커 추가 (Ctrl+T)" style={{
+      width: 20, height: 20, borderRadius: "50%", cursor: "pointer",
+      fontSize: 14, fontWeight: 400, flexShrink: 0, lineHeight: 1,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "#f0f0f0", color: "#aaa", border: "none",
+      transition: "all .15s",
+    }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "#e0e7ff"; e.currentTarget.style.color = "#3b82f6"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "#f0f0f0"; e.currentTarget.style.color = "#aaa"; }}
+    >+</button>
   );
-  const popRef = useRef(null);
+
   useEffect(() => {
     if (!open) return;
     const h = (e) => {
@@ -150,40 +329,95 @@ function CellProps({ cell, upd, tags, numColor }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
+
+  // 팝오버 위치: 화면 밖으로 나가지 않도록 보정
   const getPopPos = () => {
     if (!ref.current) return { top: 0, left: 0 };
     const r = ref.current.getBoundingClientRect();
-    return { top: r.bottom + 2, left: r.left };
+    const popW = 260, popH = 280;
+    let top = r.bottom + 4;
+    let left = r.left;
+    if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
+    if (top + popH > window.innerHeight - 8) top = r.top - popH - 4;
+    return { top, left };
   };
+
+  // 외부에서 Ctrl+T로 열기
+  const openFromKey = () => doOpen((o) => !o);
+
+  // ref를 통해 부모에서 접근 가능하게
+  useEffect(() => {
+    if (ref.current) ref.current.__openCellProps = openFromKey;
+  });
+
   return (
     <div ref={ref} style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
-      {trigger}
+      {!hideTrigger && trigger}
       {open && createPortal(
-        <div ref={popRef} style={{
+        <div ref={popRef} tabIndex={-1} onKeyDown={handlePopKey} style={{
           position: "fixed", ...getPopPos(), zIndex: 1000,
-          background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.18)",
-          padding: 8, width: 240,
+          background: "#fff", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
+          padding: "10px 12px", width: 260, outline: "none",
         }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 4 }}>태그</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 6 }}>
-            {mkBtn("", "", "", "없음")}
-            {NUM_TAGS.map((n) => mkBtn(n, nc, "#fff", n))}
+          {/* 태그 섹션 */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 0.5 }}>번호 태그</span>
+            {hasTag && <button onClick={() => upd("tag", "")} tabIndex={-1} style={{
+              fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+            }}>해제</button>}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginBottom: 8 }}>
-            {(tags || DEFAULT_TAGS).map((t) => mkBtn(t.v, t.c, t.tx, t.v))}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+            {NUM_TAGS.map((n, i) => mkTagBtn(n, nc, "#fff", n, numTagStart + i))}
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 3 }}>마커</div>
-          <input value={cell.mark} onChange={(e) => upd("mark", e.target.value)} placeholder="예: [영작], (1)"
-            style={{ width: "100%", padding: "4px 6px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 8, boxSizing: "border-box" }} />
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#999", marginBottom: 3 }}>들여쓰기</div>
-          <div style={{ display: "flex", gap: 3 }}>
-            {[0, 1, 2].map((lv) => (
-              <button key={lv} onClick={() => upd("indent", lv)} style={{
-                padding: "3px 10px", borderRadius: 4, border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 600,
-                background: indLv === lv ? "#00391e" : "#f3f4f6", color: indLv === lv ? "#fff" : "#888",
-              }}>{lv === 0 ? "없음" : `${lv}단계`}</button>
-            ))}
+
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>분류 태그</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 10 }}>
+            {allTags.map((t, i) => mkTagBtn(t.v, t.c, t.tx, t.v, namedTagStart + i))}
+          </div>
+
+          <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0 10px" }} />
+
+          {/* 마커 섹션 */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: 0.5 }}>마커</span>
+            {hasMark && <button onClick={() => upd("mark", "")} tabIndex={-1} style={{
+              fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 600,
+            }}>해제</button>}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+            {MARKER_PRESETS.map((m, i) => {
+              const sel = cell.mark === m;
+              const itemIdx = markerStart + i;
+              const focused = focusIdx === itemIdx;
+              return (
+                <button key={m} onClick={() => { toggleMark(m); setFocusIdx(itemIdx); }}
+                  onMouseEnter={() => setFocusIdx(itemIdx)}
+                  tabIndex={-1}
+                  style={{
+                    padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+                    background: sel ? "#fef3c7" : "#f9fafb", color: sel ? "#92400e" : "#6b7280",
+                    fontSize: 12, fontWeight: 600, lineHeight: "18px",
+                    border: sel ? "2px solid #92400e" : "2px solid transparent",
+                    outline: focused ? "2px solid #3b82f6" : "none", outlineOffset: 1,
+                    transition: "all .1s",
+                  }}>{m}</button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 4 }}>
+            <input ref={customInputRef} value={customMark} onChange={(e) => setCustomMark(e.target.value)}
+              placeholder="직접 입력..."
+              onFocus={() => setFocusIdx(customIdx)}
+              style={{
+                flex: 1, padding: "4px 8px", borderRadius: 4, fontSize: 12, boxSizing: "border-box",
+                border: focusIdx === customIdx ? "1.5px solid #3b82f6" : "1px solid #e5e7eb",
+                outline: "none",
+              }} />
+            <button tabIndex={-1} onClick={() => { if (customMark.trim()) { upd("mark", customMark.trim()); setCustomMark(""); } }} style={{
+              padding: "4px 10px", borderRadius: 4, border: "none", cursor: "pointer",
+              background: customMark.trim() ? "#3b82f6" : "#e5e7eb", color: customMark.trim() ? "#fff" : "#aaa",
+              fontSize: 12, fontWeight: 600, transition: "all .15s",
+            }}>적용</button>
           </div>
         </div>,
         document.body
@@ -205,6 +439,12 @@ function CellArrows({ onUp, onDown, first, last }) {
 
 function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus, onSwitchCol }) {
   const indLv = cell.indent || 0;
+  const cellPropsRef = useRef(null);
+  const textInputRef = useRef(null);
+  const nc = numColor || DEFAULT_NUM_COLOR;
+  const tc = tagColor(cell.tag, tags, nc);
+  const hasTag = !!cell.tag;
+  const hasMark = !!cell.mark;
   const TB = (active, onClick, title, children, color, textColor) => (
     <button onClick={onClick} title={title} style={{
       width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
@@ -213,18 +453,36 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
       color: active ? (textColor || "#fff") : "#ccc",
     }}>{children}</button>
   );
+  // 왼쪽 보더: 태그 색상 > 헤더 > 포커스 > 투명
+  const borderColor = hasTag ? tc.c : cell.hdr ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
   return (
     <div style={{
       background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "3px 4px",
       display: "flex", alignItems: "center", gap: 2,
-      borderLeft: cell.hdr ? "3px solid #00391e" : isFocused ? "3px solid #3b82f6" : "3px solid transparent",
+      borderLeft: `3px solid ${borderColor}`,
     }}>
-      <span style={{ fontSize: 9, color: "#bbb", fontWeight: 600, width: 14, textAlign: "right", flexShrink: 0, userSelect: "none" }}>{idx + 1}</span>
-      {indLv > 0 && <div style={{ width: indLv * 16, flexShrink: 0 }} />}
-      <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} />
-      <input value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
+      {/* 행번호 (클릭→태그/마커 팝오버) */}
+      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center" }}
+        onClick={() => cellPropsRef.current?.querySelector("div")?.__openCellProps?.()}>
+        <span title={hasTag || hasMark ? `태그: ${cell.tag || "없음"} / 마커: ${cell.mark || "없음"}` : "태그/마커 추가 (Ctrl+T)"}
+          style={{
+            fontSize: 9, fontWeight: 700, width: 18, textAlign: "center", flexShrink: 0, userSelect: "none", cursor: "pointer",
+            borderRadius: 3, lineHeight: "16px",
+            background: hasTag ? tc.c : "transparent",
+            color: hasTag ? tc.tx : hasMark ? "#92400e" : "#bbb",
+          }}>{idx + 1}</span>
+        <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} onClose={() => textInputRef.current?.focus()} hideTrigger />
+      </div>
+      {/* 들여쓰기 가이드 */}
+      {indLv > 0 && (
+        <span style={{ fontSize: 10, color: "#ccc", flexShrink: 0, userSelect: "none", letterSpacing: -2 }}>
+          {"└".repeat(indLv)}
+        </span>
+      )}
+      <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
         onFocus={onCellFocus}
         onKeyDown={(e) => {
+          if (e.ctrlKey && e.key === "t") { e.preventDefault(); cellPropsRef.current?.querySelector("div")?.__openCellProps?.(); return; }
           if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); onSwitchCol?.(e.key === "1" ? "l" : "r"); return; }
           if (e.ctrlKey && e.key === "b") { e.preventDefault(); upd("bold", !cell.bold); return; }
           if (e.ctrlKey && e.key === "h") { e.preventDefault(); upd("hdr", !cell.hdr); return; }
@@ -320,9 +578,13 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
                   <span style={{ ...TEXT_CLIP }}>{cell.text}</span>
                 </div>
               );
-              const indLv = cell.indent || 0;
+              const ghosts = getGhosts(unit.rows, i, side);
               return (
-                <div style={{ ...CELL_STYLE, padding: `0 10px 0 ${10 + indLv * 16}px`, background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
+                <div style={{ ...CELL_STYLE, padding: "0 10px", background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
+                  {ghosts.flatMap((g, gi) => [
+                    g.tag && <span key={`gt${gi}`} aria-hidden style={{ visibility: "hidden", display: "inline-block", padding: "1px 7px", borderRadius: 3, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{g.tag}</span>,
+                    g.mark && <span key={`gm${gi}`} aria-hidden style={{ visibility: "hidden", display: "inline-block", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{g.mark}</span>,
+                  ].filter(Boolean))}
                   {cell.tag && (
                     <span style={{
                       display: "inline-block", padding: "1px 7px", borderRadius: 3,
@@ -363,18 +625,21 @@ function Preview({ unit, isBlank, fontFamily, tags, numColor, printId }) {
 }
 
 /* ═══════ InlinePreviewCell — 편집 행과 나란히 보여주는 셀 미리보기 ═══════ */
-function InlinePreviewCell({ cell, isBlank, tags, numColor, onClick, isFocused }) {
+function InlinePreviewCell({ cell, isBlank, tags, numColor, onClick, isFocused, ghosts }) {
   const isEmpty = !cell.tag && !cell.mark && !cell.text && !cell.hdr;
   const show = !isBlank || cell.vis;
   const tc = tagColor(cell.tag, tags, numColor);
-  const indLv = cell.indent || 0;
   if (cell.hdr) return (
     <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 10px", background: isFocused ? "#eef4ff" : "#fff", fontWeight: 800, fontSize: 12, color: "#00391e", letterSpacing: 2, overflow: "hidden", borderBottom: "2px solid #c8d9ca", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
     </div>
   );
   return (
-    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: `0 10px 0 ${10 + indLv * 16}px`, background: isFocused ? "#eef4ff" : (isEmpty ? "#fafafa" : "#fff"), overflow: "hidden", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
+    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: "0 10px", background: isFocused ? "#eef4ff" : (isEmpty ? "#fafafa" : "#fff"), overflow: "hidden", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
+      {(ghosts || []).flatMap((g, gi) => [
+        g.tag && <span key={`gt${gi}`} aria-hidden style={{ visibility: "hidden", padding: "1px 7px", borderRadius: 3, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{g.tag}</span>,
+        g.mark && <span key={`gm${gi}`} aria-hidden style={{ visibility: "hidden", display: "inline-block", fontSize: 11, fontWeight: 600, flexShrink: 0 }}>{g.mark}</span>,
+      ].filter(Boolean))}
       {cell.tag && (
         <span style={{ padding: "1px 7px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
       )}
@@ -1221,10 +1486,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       </div>
                       {/* Preview 영역: 항상 양쪽 표시 */}
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "3px solid #bbb", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "l"} onClick={() => { setEditCol("l"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="l"] input`); if (r) r.focus(); }, editCol !== "l" ? 320 : 0); }} />
+                        <InlinePreviewCell cell={row.l} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "l"} ghosts={getGhosts(unit.rows, i, "l")} onClick={() => { setEditCol("l"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="l"] input`); if (r) r.focus(); }, editCol !== "l" ? 320 : 0); }} />
                       </div>
                       <div style={{ width: 342, flexShrink: 0, borderLeft: "1px solid #e5e7eb", boxSizing: "border-box" }}>
-                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "r"} onClick={() => { setEditCol("r"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="r"] input`); if (r) r.focus(); }, editCol !== "r" ? 320 : 0); }} />
+                        <InlinePreviewCell cell={row.r} isBlank={previewMode === "worksheet"} tags={settings.tags} numColor={settings.numTagColor} isFocused={focusedRowId === row.id && editCol === "r"} ghosts={getGhosts(unit.rows, i, "r")} onClick={() => { setEditCol("r"); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="r"] input`); if (r) r.focus(); }, editCol !== "r" ? 320 : 0); }} />
                       </div>
                     </div>
                   ))}
