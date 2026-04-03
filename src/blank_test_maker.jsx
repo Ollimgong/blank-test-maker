@@ -437,7 +437,7 @@ function CellArrows({ onUp, onDown, first, last }) {
   );
 }
 
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus, onSwitchCol }) {
+function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor, idx, rows, isFocused, onCellFocus, onSwitchCol, compact }) {
   const indLv = cell.indent || 0;
   const cellPropsRef = useRef(null);
   const textInputRef = useRef(null);
@@ -453,52 +453,125 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, numColor
       color: active ? (textColor || "#fff") : "#ccc",
     }}>{children}</button>
   );
-  // 왼쪽 보더: 태그 색상 > 헤더 > 포커스 > 투명
-  const borderColor = hasTag ? tc.c : cell.hdr ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
+  const borderColor = cell.hdr ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
+  const openProps = () => cellPropsRef.current?.querySelector("div")?.__openCellProps?.();
+  const inputKeyDown = (e) => {
+    if (e.ctrlKey && e.key === "t") { e.preventDefault(); openProps(); return; }
+    if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); onSwitchCol?.(e.key === "1" ? "l" : "r"); return; }
+    if (e.ctrlKey && e.key === "b") { e.preventDefault(); upd("bold", !cell.bold); return; }
+    if (e.ctrlKey && e.key === "h") { e.preventDefault(); upd("hdr", !cell.hdr); return; }
+    if (e.ctrlKey && e.key === "d") { e.preventDefault(); upd("vis", !cell.vis); return; }
+    if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); onUp(); return; }
+    if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); onDown(); return; }
+    if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
+    if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelector("input"); if (next) next.focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
+  };
+
+  // 부모 행의 태그/마커 색상으로 들여쓰기 가이드 선 색상 결정
+  const guideColors = (() => {
+    if (indLv === 0) return [];
+    const colors = [];
+    for (let g = 0; g < indLv; g++) {
+      let color = "#d1d5db";
+      for (let j = idx - 1; j >= 0; j--) {
+        const c = rows[j][side];
+        const ci = c.indent || 0;
+        if (ci === g) {
+          if (c.tag) color = tagColor(c.tag, tags, nc).c;
+          else if (c.mark) color = "#f59e0b";
+          break;
+        }
+        if (ci < g) break;
+      }
+      colors.push(color);
+    }
+    return colors;
+  })();
+  const indentGuides = indLv > 0 ? guideColors.map((color, i) => (
+    <div key={i} style={{ width: 10, flexShrink: 0, borderLeft: `2px solid ${color}`, alignSelf: "stretch" }} />
+  )) : null;
+
+  /* ── 컴팩트 모드: 1줄 ── */
+  if (compact) return (
+    <div style={{
+      background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "2px 4px",
+      display: "flex", alignItems: "center", gap: 3,
+      borderLeft: `3px solid ${borderColor}`,
+    }}>
+      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center" }} onClick={openProps}>
+        <span style={{ fontSize: 9, fontWeight: 700, width: 16, textAlign: "center", userSelect: "none", cursor: "pointer", color: "#bbb", lineHeight: "18px" }}>{idx + 1}</span>
+        <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} onClose={() => textInputRef.current?.focus()} hideTrigger />
+      </div>
+      {indentGuides}
+      {hasTag && <span style={{ padding: "0 5px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9, fontWeight: 700, lineHeight: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>{cell.tag}</span>}
+      {hasMark && <span style={{ padding: "0 4px", borderRadius: 3, background: "#fef3c7", color: "#92400e", fontSize: 9, fontWeight: 600, lineHeight: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>{cell.mark}</span>}
+      <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder=""
+        onFocus={onCellFocus} onKeyDown={inputKeyDown}
+        style={{ flex: 1, padding: "1px 4px", border: isFocused ? "1px solid #3b82f6" : "1px solid transparent", borderRadius: 2, fontSize: 12, outline: "none", background: "transparent", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+    </div>
+  );
+
+  /* ── 편집 모드: 2줄 ── */
   return (
     <div style={{
       background: isFocused ? "#eef4ff" : "#f5f6f8", padding: "3px 4px",
-      display: "flex", alignItems: "center", gap: 2,
+      display: "flex", gap: 4,
       borderLeft: `3px solid ${borderColor}`,
     }}>
       {/* 행번호 (클릭→태그/마커 팝오버) */}
-      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center" }}
-        onClick={() => cellPropsRef.current?.querySelector("div")?.__openCellProps?.()}>
-        <span title={hasTag || hasMark ? `태그: ${cell.tag || "없음"} / 마커: ${cell.mark || "없음"}` : "태그/마커 추가 (Ctrl+T)"}
+      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
+        onClick={openProps}>
+        <span title="태그/마커 추가 (Ctrl+T)"
           style={{
             fontSize: 9, fontWeight: 700, width: 18, textAlign: "center", flexShrink: 0, userSelect: "none", cursor: "pointer",
             borderRadius: 3, lineHeight: "16px",
-            background: hasTag ? tc.c : "transparent",
-            color: hasTag ? tc.tx : hasMark ? "#92400e" : "#bbb",
+            background: "transparent", color: "#bbb",
           }}>{idx + 1}</span>
         <CellProps cell={cell} upd={upd} tags={tags} numColor={numColor} onClose={() => textInputRef.current?.focus()} hideTrigger />
       </div>
-      {/* 들여쓰기 가이드 */}
-      {indLv > 0 && (
-        <span style={{ fontSize: 10, color: "#ccc", flexShrink: 0, userSelect: "none", letterSpacing: -2 }}>
-          {"└".repeat(indLv)}
-        </span>
-      )}
-      <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
-        onFocus={onCellFocus}
-        onKeyDown={(e) => {
-          if (e.ctrlKey && e.key === "t") { e.preventDefault(); cellPropsRef.current?.querySelector("div")?.__openCellProps?.(); return; }
-          if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); onSwitchCol?.(e.key === "1" ? "l" : "r"); return; }
-          if (e.ctrlKey && e.key === "b") { e.preventDefault(); upd("bold", !cell.bold); return; }
-          if (e.ctrlKey && e.key === "h") { e.preventDefault(); upd("hdr", !cell.hdr); return; }
-          if (e.ctrlKey && e.key === "d") { e.preventDefault(); upd("vis", !cell.vis); return; }
-          if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); onUp(); return; }
-          if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); onDown(); return; }
-          if (e.key === "Tab") { e.preventDefault(); upd("indent", e.shiftKey ? Math.max(0, indLv - 1) : Math.min(2, indLv + 1)); }
-          if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelector("input"); if (next) next.focus(); }
-          if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
-        }}
-        style={{ flex: 1, padding: "3px 6px", border: isFocused ? "1px solid #3b82f6" : "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
-      <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
-        {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더 (Ctrl+H)", "H", "#00391e", "#fff")}
-        {TB(cell.bold, () => upd("bold", !cell.bold), "굵게 (Ctrl+B)", "B", "#1f2937", "#fff")}
-        {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (Ctrl+D)", "표시", "#f59e0b", "#78350f")}
-        <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
+      {/* 들여쓰기 세로선 가이드 */}
+      {indentGuides}
+      {/* 콘텐츠: 2줄 구조 */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+        {/* 상단: 태그/마커 뱃지 + 속성 버튼 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 3, height: 18, minHeight: 18 }}>
+          {hasTag ? (
+            <span onClick={openProps} style={{
+              padding: "0 6px", borderRadius: 3, background: tc.c, color: tc.tx,
+              fontSize: 10, fontWeight: 700, cursor: "pointer", lineHeight: "16px", whiteSpace: "nowrap",
+            }}>{cell.tag}</span>
+          ) : isFocused ? (
+            <span onClick={openProps} style={{
+              fontSize: 9, color: "#bbb", cursor: "pointer", padding: "0 4px",
+              border: "1px dashed #d1d5db", borderRadius: 3, lineHeight: "14px", whiteSpace: "nowrap",
+            }}>+태그</span>
+          ) : null}
+          {hasMark ? (
+            <span onClick={openProps} style={{
+              padding: "0 5px", borderRadius: 3, background: "#fef3c7", color: "#92400e",
+              fontSize: 10, fontWeight: 600, cursor: "pointer", lineHeight: "16px", whiteSpace: "nowrap",
+            }}>{cell.mark}</span>
+          ) : isFocused ? (
+            <span onClick={openProps} style={{
+              fontSize: 9, color: "#bbb", cursor: "pointer", padding: "0 4px",
+              border: "1px dashed #d1d5db", borderRadius: 3, lineHeight: "14px", whiteSpace: "nowrap",
+            }}>+마커</span>
+          ) : null}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+            {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더 (Ctrl+H)", "H", "#00391e", "#fff")}
+            {TB(cell.bold, () => upd("bold", !cell.bold), "굵게 (Ctrl+B)", "B", "#1f2937", "#fff")}
+            {TB(cell.vis, () => upd("vis", !cell.vis), "시험지에 표시 (Ctrl+D)", "표시", "#f59e0b", "#78350f")}
+            <CellArrows onUp={onUp} onDown={onDown} first={first} last={last} />
+          </div>
+        </div>
+        {/* 하단: 텍스트 입력 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
+            onFocus={onCellFocus} onKeyDown={inputKeyDown}
+            style={{ flex: 1, padding: "3px 6px", border: isFocused ? "1px solid #3b82f6" : "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+        </div>
       </div>
     </div>
   );
@@ -765,6 +838,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [previewMode, setPreviewMode] = useState("answer"); // "answer" | "worksheet"
   const [editCol, setEditCol] = useState("l"); // "l" = 1열, "r" = 2열
+  const [editExpanded, setEditExpanded] = useState(true); // true = 편집모드(2줄), false = 컴팩트(1줄)
   const [focusedRowId, setFocusedRowId] = useState(null); // 현재 편집 중인 행 ID
   const [fullPreview, setFullPreview] = useState(null); // null | "answer" | "blank"
   const [fullPrintMenu, setFullPrintMenu] = useState(false);
@@ -1439,8 +1513,12 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   </div>
                   {/* 2행: Edit | Preview [A][W] */}
                   <div style={{ display: "flex", background: "#f0f0f0", borderBottom: "none", height: 26, alignItems: "center" }}>
-                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Edit</span>
+                      <div style={{ display: "flex", gap: 1, background: "#e0e0e0", borderRadius: 4, padding: 1 }}>
+                        <button onClick={() => setEditExpanded(true)} style={{ padding: "2px 10px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: editExpanded ? "#3b82f6" : "transparent", color: editExpanded ? "#fff" : "#999", transition: "all .15s" }}>편집</button>
+                        <button onClick={() => setEditExpanded(false)} style={{ padding: "2px 10px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 700, cursor: "pointer", background: !editExpanded ? "#3b82f6" : "transparent", color: !editExpanded ? "#fff" : "#999", transition: "all .15s" }}>컴팩트</button>
+                      </div>
                     </div>
                     <div style={{ width: 684, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, borderLeft: "3px solid #bbb", boxSizing: "border-box" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#555", letterSpacing: 0.5 }}>Preview</span>
@@ -1486,10 +1564,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                         <div style={{ display: "flex", width: "200%", transform: editCol === "l" ? "translateX(0)" : "translateX(-50%)", transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }}>
                           <div data-side="l" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "l"} onCellFocus={() => { setFocusedRowId(row.id); setSidebarOpen(false); }} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} />
+                            <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "l"} onCellFocus={() => { setFocusedRowId(row.id); setSidebarOpen(false); }} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} compact={!editExpanded} />
                           </div>
                           <div data-side="r" style={{ width: "50%", flexShrink: 0 }}>
-                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "r"} onCellFocus={() => { setFocusedRowId(row.id); setSidebarOpen(false); }} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} />
+                            <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={i === unit.rows.length - 1} tags={settings.tags} numColor={settings.numTagColor} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && editCol === "r"} onCellFocus={() => { setFocusedRowId(row.id); setSidebarOpen(false); }} onSwitchCol={(col) => { setEditCol(col); setFocusedRowId(row.id); setTimeout(() => { const r = document.querySelector(`[data-rowid="${row.id}"] [data-side="${col}"] input`); if (r) r.focus(); }, 320); }} compact={!editExpanded} />
                           </div>
                         </div>
                       </div>
