@@ -34,10 +34,10 @@
   title: "수동태",
   rows: [{               // 30행 고정
     id,
-    l: { prefix, tag, text, vis, bold, hdr, indent },  // 좌우 동일 구조
-    r: { prefix, tag, text, vis, bold, hdr, indent }   // indent=0/1/2 (현재 미사용, 향후 재구현 예정)
+    l: { text, vis, bold, hdr, indent },  // 좌우 동일 구조
+    r: { text, vis, bold, hdr, indent }   // indent=0/1/2 (현재 미사용, 향후 재구현 예정)
   }],
-  settings: { logo, slogan, customFont, customFontName, tags }
+  // settings는 전역 (앱 설정)으로 분리됨
 }
 ```
 
@@ -58,14 +58,16 @@
 
 ## 코드 구조 (blank_test_maker.jsx 내부)
 ```
-상수/헬퍼          DEFAULT_TAGS, PREFIX_NUMBERS, PREFIX_BULLETS, tagColor(), emptyRow(), hdrRow(), padRows()
-행 상수            TOTAL_ROWS=30, ROW_H=27
-CellProps          셀 속성 팝오버 (접두사/태그 선택)
-EditorCell         편집 셀 — 편집모드(2줄) / 컴팩트모드(1줄) 토글
-InlinePreviewCell  편집 행과 나란히 보여주는 셀 미리보기 (ANSWER/WORKSHEET)
-Preview            A4 고정 크기 미리보기 (인쇄용, 740x1046px)
-PrintThumbnails    출력 모달 썸네일 그리드 (선택된 페이지만, 그룹별 표시)
-App (default)      메인 앱 — 헤더 + 통합 사이드바 + 에디터
+상수/헬퍼            DEFAULT_TAGS, tagColor(), emptyRow(), hdrRow(), padRows()
+인라인 마크업 파서   parseInlineMarkup() — #태그, [라벨], [[이스케이프]] 파싱
+행 상수              TOTAL_ROWS=30, ROW_H=27
+TagDropdown          # 입력 시 태그 자동완성 드롭다운
+EditorCell           편집 셀 — 편집모드(2줄) / 컴팩트모드(1줄) 토글
+RenderSegments       인라인 마크업 세그먼트 렌더링 (태그 뱃지, 라벨, 텍스트)
+InlinePreviewCell    편집 행과 나란히 보여주는 셀 미리보기 (ANSWER/WORKSHEET)
+Preview              A4 고정 크기 미리보기 (인쇄용, 740x1046px)
+PrintThumbnails      출력 모달 썸네일 그리드 (선택된 페이지만, 그룹별 표시)
+App (default)        메인 앱 — 헤더 + 통합 사이드바 + 에디터
 ```
 
 ## 레이아웃
@@ -84,10 +86,13 @@ App (default)      메인 앱 — 헤더 + 통합 사이드바 + 에디터
 └──────┴────────────────────────────────────────────┘
 ```
 
-## 접두사/태그 시스템
-- **접두사 (prefix)**: 텍스트 앞 인라인 표시 (1-9, -, (1), (2), (3), ※, ★, [영작] 등). Plain text 렌더링.
-- **태그 (tag)**: 분류 뱃지 (개념, 형태, 예문, 주의, 예시 등). 색상 뱃지 렌더링. 설정에서 커스텀 가능.
-- CellProps 팝오버: 접두사 섹션(번호+기호+커스텀) / 태그 섹션(분류태그)
+## 인라인 마크업 시스템
+텍스트 필드 안에 태그와 라벨을 직접 입력하는 방식. 별도 필드(prefix, tag) 없이 text 하나에 모든 정보 포함.
+- **태그**: `#개념`, `#형태` 등 — 등록된 태그에 매칭되면 컬러 뱃지로 렌더링. `#` 입력 시 자동완성 드롭다운 표시.
+- **라벨**: `[영작]`, `[수동태]` 등 — 가벼운 스타일(회색 배경)로 렌더링. 자유 텍스트.
+- **이스케이프**: `[[텍스트]]` → 리터럴 `[텍스트]`로 표시 (대괄호를 그대로 보여주고 싶을 때)
+- 태그/라벨은 텍스트 어디에든 삽입 가능 (앞, 중간, 뒤)
+- `parseInlineMarkup()` 함수가 텍스트를 파싱하여 세그먼트 배열로 변환
 - 편집모드(2줄)/컴팩트모드(1줄) 토글 가능 (Edit 헤더 세그먼트 버튼)
 
 ## Electron 구조
@@ -101,10 +106,8 @@ App (default)      메인 앱 — 헤더 + 통합 사이드바 + 에디터
 - 편집 시 1초 debounce 자동저장
 
 ## 미해결 백로그
+- ~~**편집 UI 편의성 개선**~~: 완료. 접두사 제거, 태그(#)와 라벨([]) 인라인 마크업 방식으로 변경.
 - **들여쓰기 시스템 재구현**: 아래 "들여쓰기 시도 기록" 참조. 현재 indent 필드는 데이터에 존재하지만 UI/기능은 전부 제거된 상태. 재설계 필요.
-- **사이드바 너비 개선**: 210px 고정 → 넓히거나 리사이즈 가능하게. 파일명 잘림 문제.
-- **파일 컨텍스트 메뉴 개선**: ⋯ 버튼이 작고 발견하기 어려움. 우클릭 메뉴 추가 or hover 시 더 명확하게.
-- **빈 행 구분 강화**: 프리뷰에서 내용 있는 행과 빈 행의 시각 차이 강화.
 - **인쇄 미리보기 창 성능**: PDF 생성 → 미리보기 창 표시까지 체감 지연 있음. Electron printToPDF 파이프라인 한계.
 
 ## 들여쓰기 시도 기록 (실패 → 롤백)

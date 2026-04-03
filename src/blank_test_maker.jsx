@@ -4,11 +4,7 @@ import logoImg from "./assets/logo.png";
 
 /* ═══════ helpers ═══════ */
 const uid = () => Math.random().toString(36).slice(2, 10);
-// 접두사 (prefix): 텍스트 앞 인라인 표시
-const PREFIX_NUMBERS = ["1","2","3","4","5","6","7","8","9"];
-const PREFIX_BULLETS = ["-","(1)","(2)","(3)","※","★","[영작]"];
-const PREFIX_NUMBER_SET = new Set(PREFIX_NUMBERS);
-// 태그 (tag): 색상 뱃지로 표시되는 분류/라벨
+// 태그 (tag): 색상 뱃지로 표시되는 분류/라벨 — 텍스트 안에 #태그이름 으로 삽입
 const DEFAULT_TAGS = [
   { v: "개념", c: "#2563EB", tx: "#fff" },
   { v: "형태", c: "#ec6619", tx: "#fff" },
@@ -16,9 +12,6 @@ const DEFAULT_TAGS = [
   { v: "주의", c: "#dc2626", tx: "#fff" },
   { v: "예시", c: "#7e7e7f", tx: "#fff" },
 ];
-// 마이그레이션용 상수 (구 포맷 호환)
-const OLD_NUM_TAG_SET = new Set(["1","2","3","4","5","6","7","8","9","10"]);
-const OLD_PTAG_VALUES = new Set(["영작", "수동태", "(1)", "(2)"]);
 const NO_TAG = { v: "", label: "태그 없음", c: "#d1d5db", tx: "#6b7280" };
 const tagColor = (v, tags) => {
   if (!v) return NO_TAG;
@@ -26,9 +19,67 @@ const tagColor = (v, tags) => {
 };
 const emptyRow = () => ({
   id: uid(),
-  l: { prefix: "", tag: "", text: "", vis: false, bold: false, hdr: false, indent: 0 },
-  r: { prefix: "", tag: "", text: "", vis: false, bold: false, hdr: false, indent: 0 },
+  l: { text: "", vis: false, bold: false, hdr: false, indent: 0 },
+  r: { text: "", vis: false, bold: false, hdr: false, indent: 0 },
 });
+
+/* ═══════ 인라인 마크업 파서 ═══════ */
+// #태그 → 컬러 뱃지, [라벨] → 가벼운 라벨, [[이스케이프]] → 리터럴 [이스케이프]
+const parseInlineMarkup = (text, tags) => {
+  if (!text) return [];
+  const tagNames = (tags || DEFAULT_TAGS).map((t) => t.v).filter(Boolean);
+  // 긴 태그이름 먼저 매칭 (예: "주의사항" 이 "주의"보다 먼저)
+  tagNames.sort((a, b) => b.length - a.length);
+  const segments = [];
+  const pushText = (ch) => {
+    if (segments.length && segments[segments.length - 1].type === "text") segments[segments.length - 1].value += ch;
+    else segments.push({ type: "text", value: ch });
+  };
+  let i = 0;
+  while (i < text.length) {
+    // #태그
+    if (text[i] === "#") {
+      let matched = false;
+      for (const tn of tagNames) {
+        if (text.substring(i + 1, i + 1 + tn.length) === tn) {
+          const after = i + 1 + tn.length;
+          if (after >= text.length || /[\s#\[]/.test(text[after])) {
+            const tc = tagColor(tn, tags);
+            segments.push({ type: "tag", value: tn, c: tc.c, tx: tc.tx });
+            i = after;
+            if (i < text.length && text[i] === " ") i++; // 태그 뒤 공백 하나 소비
+            matched = true;
+            break;
+          }
+        }
+      }
+      if (!matched) { pushText("#"); i++; }
+      continue;
+    }
+    // [[이스케이프]] → 리터럴 [...]
+    if (text[i] === "[" && text[i + 1] === "[") {
+      const close = text.indexOf("]]", i + 2);
+      if (close !== -1) {
+        pushText("[" + text.substring(i + 2, close) + "]");
+        i = close + 2;
+        continue;
+      }
+    }
+    // [라벨]
+    if (text[i] === "[") {
+      const close = text.indexOf("]", i + 1);
+      if (close !== -1 && close > i + 1) {
+        segments.push({ type: "label", value: text.substring(i + 1, close) });
+        i = close + 1;
+        if (i < text.length && text[i] === " ") i++; // 라벨 뒤 공백 하나 소비
+        continue;
+      }
+    }
+    pushText(text[i]);
+    i++;
+  }
+  return segments;
+};
 
 
 /* ═══════ row helpers ═══════ */
@@ -41,308 +92,116 @@ const padRows = (rows) => {
 /* ═══════ default data ═══════ */
 const mk = (ld, rd) => ({
   id: uid(),
-  l: { prefix: ld.p || "", tag: ld.t || "", text: ld.x || "", vis: !ld.a, bold: !!ld.b, indent: ld.i || 0 },
-  r: { prefix: rd.p || "", tag: rd.t || "", text: rd.x || "", vis: !rd.a, bold: !!rd.b, indent: rd.i || 0 },
+  l: { text: ld.x || "", vis: !ld.a, bold: !!ld.b, indent: ld.i || 0 },
+  r: { text: rd.x || "", vis: !rd.a, bold: !!rd.b, indent: rd.i || 0 },
 });
 
 const hdrRow = (lText, rText) => ({
   id: uid(),
-  l: { prefix: "", tag: "", text: lText, vis: true, bold: false, hdr: true, indent: 0 },
-  r: { prefix: "", tag: "", text: rText, vis: true, bold: false, hdr: true, indent: 0 },
+  l: { text: lText, vis: true, bold: false, hdr: true, indent: 0 },
+  r: { text: rText, vis: true, bold: false, hdr: true, indent: 0 },
 });
 
 const PASSIVE_ROWS = [
   hdrRow("SUMMARY", "PRACTICE"),
   mk({ x: "능동: 주어가 동사를 직접 함", a: 1 }, { x: "영작 & 수동태 전환 연습", b: 1 }),
-  mk({ x: "수동: 주어가 동사를 다른 행위자에 의해 당함", a: 1 }, { p: "1", x: "나의 친구들은 나를 사랑한다." }),
-  mk({}, { p: "[영작]", x: "My friends love me.", a: 1 }),
-  mk({ x: "능동태 -> 수동태 전환방법", b: 1 }, { p: "[수동태]", x: "I am loved by my friends.", a: 1 }),
-  mk({ t: "예문", x: "She wrote a letter.", a: 1 }, { p: "2", x: "나는 접시들을 씻는다." }),
-  mk({ x: "1) 능동태의 주어, 동사, 목적어를 찾는다.", a: 1 }, { p: "[영작]", x: "I wash the dishes.", a: 1 }),
-  mk({ x: "=> 주어: She / 동사: wrote / 목적어: a letter", a: 1 }, { p: "[수동태]", x: "The dishes are washed by me.", a: 1 }),
-  mk({ x: "2) 능동태의 시제를 파악한다.", a: 1 }, { p: "3", x: "그는 창문을 닫았다." }),
-  mk({ x: "=> 과거", a: 1 }, { p: "[영작]", x: "He closed the window.", a: 1 }),
-  mk({ x: "3) 능동태의 목적어를 수동태의 주어 자리에 쓴다.", a: 1 }, { p: "[수동태]", x: "The window was closed by him.", a: 1 }),
-  mk({ x: "=> A letter", a: 1 }, { p: "4", x: "Joy는 컵들을 깼다." }),
-  mk({ x: "4) be동사를 수/시제에 맞게 쓴다.", a: 1 }, { p: "[영작]", x: "Joy broke the cups.", a: 1 }),
-  mk({ x: "=> A letter was", a: 1 }, { p: "[수동태]", x: "The cups were broken by Joy.", a: 1 }),
-  mk({ x: "5) 동사를 p.p형태로 바꾼다.", a: 1 }, { p: "5", x: "그녀는 파티를 개최할 것이다." }),
-  mk({ x: "=> A letter was written", a: 1 }, { p: "[영작]", x: "She will hold a party.", a: 1 }),
-  mk({ x: "6) by + 원래 주어를 목적격으로 쓴다.", a: 1 }, { p: "[수동태]", x: "A party will be held by her.", a: 1 }),
-  mk({ x: "=> A letter was written by her.", a: 1 }, { p: "6", x: "할머니는 케이크를 구울 것이다." }),
-  mk({ t: "주의", x: "A letter was written by she. (X)", a: 1 }, { p: "[영작]", x: "Grandma will bake the cake.", a: 1 }),
-  mk({}, { p: "[수동태]", x: "The cake will be baked by Grandma.", a: 1 }),
-  mk({ x: "by + 목적격의 생략", b: 1 }, { p: "7", x: "사람들은 미국에서 영어를 말한다." }),
-  mk({ t: "개념", x: "행위자가 분명하지 않거나 중요하지 않을 때", a: 1 }, { p: "[영작]", x: "People speak English in America.", a: 1 }),
-  mk({ x: "by + 목적격은 생략할 수 있다", a: 1 }, { p: "[수동태]", x: "English is spoken in America.", a: 1 }),
-  mk({ t: "예문", x: "Someone planted the tree in 1995.", a: 1 }, {}),
+  mk({ x: "수동: 주어가 동사를 다른 행위자에 의해 당함", a: 1 }, { x: "1 나의 친구들은 나를 사랑한다." }),
+  mk({}, { x: "[영작] My friends love me.", a: 1 }),
+  mk({ x: "능동태 -> 수동태 전환방법", b: 1 }, { x: "[수동태] I am loved by my friends.", a: 1 }),
+  mk({ x: "#예문 She wrote a letter.", a: 1 }, { x: "2 나는 접시들을 씻는다." }),
+  mk({ x: "1) 능동태의 주어, 동사, 목적어를 찾는다.", a: 1 }, { x: "[영작] I wash the dishes.", a: 1 }),
+  mk({ x: "=> 주어: She / 동사: wrote / 목적어: a letter", a: 1 }, { x: "[수동태] The dishes are washed by me.", a: 1 }),
+  mk({ x: "2) 능동태의 시제를 파악한다.", a: 1 }, { x: "3 그는 창문을 닫았다." }),
+  mk({ x: "=> 과거", a: 1 }, { x: "[영작] He closed the window.", a: 1 }),
+  mk({ x: "3) 능동태의 목적어를 수동태의 주어 자리에 쓴다.", a: 1 }, { x: "[수동태] The window was closed by him.", a: 1 }),
+  mk({ x: "=> A letter", a: 1 }, { x: "4 Joy는 컵들을 깼다." }),
+  mk({ x: "4) be동사를 수/시제에 맞게 쓴다.", a: 1 }, { x: "[영작] Joy broke the cups.", a: 1 }),
+  mk({ x: "=> A letter was", a: 1 }, { x: "[수동태] The cups were broken by Joy.", a: 1 }),
+  mk({ x: "5) 동사를 p.p형태로 바꾼다.", a: 1 }, { x: "5 그녀는 파티를 개최할 것이다." }),
+  mk({ x: "=> A letter was written", a: 1 }, { x: "[영작] She will hold a party.", a: 1 }),
+  mk({ x: "6) by + 원래 주어를 목적격으로 쓴다.", a: 1 }, { x: "[수동태] A party will be held by her.", a: 1 }),
+  mk({ x: "=> A letter was written by her.", a: 1 }, { x: "6 할머니는 케이크를 구울 것이다." }),
+  mk({ x: "#주의 A letter was written by she. (X)", a: 1 }, { x: "[영작] Grandma will bake the cake.", a: 1 }),
+  mk({}, { x: "[수동태] The cake will be baked by Grandma.", a: 1 }),
+  mk({ x: "by + 목적격의 생략", b: 1 }, { x: "7 사람들은 미국에서 영어를 말한다." }),
+  mk({ x: "#개념 행위자가 분명하지 않거나 중요하지 않을 때", a: 1 }, { x: "[영작] People speak English in America.", a: 1 }),
+  mk({ x: "by + 목적격은 생략할 수 있다", a: 1 }, { x: "[수동태] English is spoken in America.", a: 1 }),
+  mk({ x: "#예문 Someone planted the tree in 1995.", a: 1 }, {}),
   mk({ x: "=> The tree was planted in 1995.", a: 1 }, {}),
 ];
 
 const RELATIVE_ROWS = [
   hdrRow("SUMMARY", "PRACTICE"),
-  mk({ x: "관계대명사는 [접속사 + 대명사] 의 역할을 하며", a: 1 }, { x: "영작연습", b: 1 }),
-  mk({ x: "관계대명사가 이끄는 절은 앞의 명사(선행사)를 수식한다", a: 1, i: 1 }, { p: "1", x: "나는 착한 소년을 안다." }),
-  mk({ x: "주격관계대명사", b: 1 }, { p: "(1)", x: "I know a boy.", a: 1 }),
-  mk({ t: "개념", x: "주격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { p: "(2)", x: "The boy is kind.", a: 1 }),
+  mk({ x: "관계대명사는 [[접속사 + 대명사]] 의 역할을 하며", a: 1 }, { x: "영작연습", b: 1 }),
+  mk({ x: "관계대명사가 이끄는 절은 앞의 명사(선행사)를 수식한다", a: 1, i: 1 }, { x: "1 나는 착한 소년을 안다." }),
+  mk({ x: "주격관계대명사", b: 1 }, { x: "(1) I know a boy.", a: 1 }),
+  mk({ x: "#개념 주격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "(2) The boy is kind.", a: 1 }),
   mk({ x: "주어의 역할을 한다", a: 1, i: 1 }, { x: "=> I know a boy ( who is kind ).", a: 1 }),
-  mk({ t: "형태", x: "- 선행사가 사람일 때 : who", a: 1 }, { p: "2", x: "그는 내가 믿는 친구를 가지고 있다." }),
-  mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { p: "(1)", x: "He has a friend.", a: 1 }),
-  mk({ t: "예문", x: "She is a girl ( who likes pasta ).", a: 1 }, { p: "(2)", x: "I trust the friend.", a: 1 }),
+  mk({ x: "#형태 - 선행사가 사람일 때 : who", a: 1 }, { x: "2 그는 내가 믿는 친구를 가지고 있다." }),
+  mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { x: "(1) He has a friend.", a: 1 }),
+  mk({ x: "#예문 She is a girl ( who likes pasta ).", a: 1 }, { x: "(2) I trust the friend.", a: 1 }),
   mk({ x: "선행사 (사람O)", a: 1 }, { x: "=> He has a friend ( who(m) I trust ).", a: 1 }),
-  mk({ t: "예문", x: "This is a house ( which is expensive ).", a: 1 }, { p: "3", x: "우리는 빠른 차를 봤다." }),
-  mk({ x: "선행사 (사람X)", a: 1 }, { p: "(1)", x: "We saw a car.", a: 1 }),
-  mk({ x: "목적격관계대명사", b: 1 }, { p: "(2)", x: "The car was fast.", a: 1 }),
-  mk({ t: "개념", x: "목적격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> We saw a car ( which was fast ).", a: 1 }),
-  mk({ x: "목적어의 역할을 한다", a: 1, i: 1 }, { p: "4", x: "우리가 어제 만난 그 선생님은 착하다." }),
-  mk({ t: "형태", x: "- 선행사가 사람일 때 : who / whom", a: 1 }, { p: "(1)", x: "The teacher is kind.", a: 1 }),
-  mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { p: "(2)", x: "We met the teacher yesterday.", a: 1 }),
-  mk({ t: "예문", x: "She is a girl ( who(m) I like ).", a: 1 }, { x: "=> The teacher ( who(m) we met yesterday )", a: 1 }),
+  mk({ x: "#예문 This is a house ( which is expensive ).", a: 1 }, { x: "3 우리는 빠른 차를 봤다." }),
+  mk({ x: "선행사 (사람X)", a: 1 }, { x: "(1) We saw a car.", a: 1 }),
+  mk({ x: "목적격관계대명사", b: 1 }, { x: "(2) The car was fast.", a: 1 }),
+  mk({ x: "#개념 목적격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> We saw a car ( which was fast ).", a: 1 }),
+  mk({ x: "목적어의 역할을 한다", a: 1, i: 1 }, { x: "4 우리가 어제 만난 그 선생님은 착하다." }),
+  mk({ x: "#형태 - 선행사가 사람일 때 : who / whom", a: 1 }, { x: "(1) The teacher is kind.", a: 1 }),
+  mk({ x: "- 선행사가 사람이 아닐 때 : which", a: 1 }, { x: "(2) We met the teacher yesterday.", a: 1 }),
+  mk({ x: "#예문 She is a girl ( who(m) I like ).", a: 1 }, { x: "=> The teacher ( who(m) we met yesterday )", a: 1 }),
   mk({ x: "선행사 (사람O)", a: 1 }, { x: "is kind.", a: 1 }),
-  mk({ t: "예문", x: "This is a house ( which Joy bought ).", a: 1 }, { p: "5", x: "그는 머리가 긴 소녀를 만났다." }),
-  mk({ x: "선행사 (사람X)", a: 1 }, { p: "(1)", x: "He met a girl.", a: 1 }),
-  mk({ x: "소유격관계대명사", b: 1 }, { p: "(2)", x: "Her hair is long.", a: 1 }),
-  mk({ t: "개념", x: "소유격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> He met a girl ( whose hair is long ).", a: 1 }),
-  mk({ x: "소유격 역할을 한다", a: 1, i: 1 }, { p: "6", x: "그는 부산에서 일하는 의사를 안다." }),
-  mk({ t: "형태", x: "선행사와 상관없이 whose", a: 1 }, { p: "(1)", x: "He knows a doctor.", a: 1 }),
-  mk({ t: "예문", x: "She is a girl ( whose hair is long ).", a: 1 }, { p: "(2)", x: "The doctor works in Busan.", a: 1 }),
-  mk({ t: "예문", x: "This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
+  mk({ x: "#예문 This is a house ( which Joy bought ).", a: 1 }, { x: "5 그는 머리가 긴 소녀를 만났다." }),
+  mk({ x: "선행사 (사람X)", a: 1 }, { x: "(1) He met a girl.", a: 1 }),
+  mk({ x: "소유격관계대명사", b: 1 }, { x: "(2) Her hair is long.", a: 1 }),
+  mk({ x: "#개념 소유격관계대명사는 관계대명사가 이끄는 절에서", a: 1 }, { x: "=> He met a girl ( whose hair is long ).", a: 1 }),
+  mk({ x: "소유격 역할을 한다", a: 1, i: 1 }, { x: "6 그는 부산에서 일하는 의사를 안다." }),
+  mk({ x: "#형태 선행사와 상관없이 whose", a: 1 }, { x: "(1) He knows a doctor.", a: 1 }),
+  mk({ x: "#예문 She is a girl ( whose hair is long ).", a: 1 }, { x: "(2) The doctor works in Busan.", a: 1 }),
+  mk({ x: "#예문 This is a house ( whose roof is red ).", a: 1 }, { x: "=> He knows a doctor ( who works in Busan ).", a: 1 }),
 ];
 
 const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
 const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
 
 
-/* ═══════ CellProps (접두사 + 태그 팝오버) ═══════ */
-function CellProps({ cell, upd, tags, onClose, hideTrigger }) {
-  const [open, setOpen] = useState(false);
-  const [customPrefix, setCustomPrefix] = useState("");
-  const [focusIdx, setFocusIdx] = useState(0);
-  const ref = useRef(null);
-  const tc = tagColor(cell.tag, tags);
-  const hasTag = !!cell.tag;
-  const hasPrefix = !!cell.prefix;
-  const hasAny = hasTag || hasPrefix;
-
+/* ═══════ TagDropdown — # 입력 시 태그 자동완성 ═══════ */
+function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx }) {
   const allTags = tags || DEFAULT_TAGS;
-  const items = [
-    ...PREFIX_NUMBERS.map((n) => ({ type: "prefix", v: n })),
-    ...PREFIX_BULLETS.map((b) => ({ type: "prefix", v: b })),
-    { type: "custom" },
-    ...allTags.map((t) => ({ type: "tag", v: t.v, c: t.c, tx: t.tx })),
-  ];
-  const customInputRef = useRef(null);
-
-  const togglePrefix = (v) => upd("prefix", cell.prefix === v ? "" : v);
-  const toggleTag = (v) => upd("tag", cell.tag === v ? "" : v);
-
-  const selectItem = (idx) => {
-    const item = items[idx];
-    if (!item) return;
-    if (item.type === "prefix") togglePrefix(item.v);
-    else if (item.type === "tag") toggleTag(item.v);
-    else if (item.type === "custom") customInputRef.current?.focus();
-  };
-
-  const doOpen = (val) => {
-    const next = typeof val === "function" ? val(open) : val;
-    if (next && !open) setFocusIdx(0);
-    if (!next && open) onClose?.();
-    setOpen(next);
-  };
-
-  const prefixNumStart = 0;
-  const prefixBulletStart = PREFIX_NUMBERS.length;
-  const customIdx = PREFIX_NUMBERS.length + PREFIX_BULLETS.length;
-  const tagStart = customIdx + 1;
-
-  const sections = [
-    PREFIX_NUMBERS.map((_, i) => prefixNumStart + i),
-    PREFIX_BULLETS.map((_, i) => prefixBulletStart + i),
-    [customIdx],
-    allTags.map((_, i) => tagStart + i),
-  ];
-  const findSection = (idx) => {
-    for (let s = 0; s < sections.length; s++) {
-      const pos = sections[s].indexOf(idx);
-      if (pos !== -1) return { s, pos };
-    }
-    return { s: 0, pos: 0 };
-  };
-  const moveVertical = (dir) => {
-    const { s, pos } = findSection(focusIdx);
-    const ns = Math.max(0, Math.min(sections.length - 1, s + dir));
-    if (ns === s) return focusIdx;
-    const ratio = sections[s].length > 1 ? pos / (sections[s].length - 1) : 0;
-    const newPos = Math.round(ratio * (sections[ns].length - 1));
-    return sections[ns][newPos];
-  };
-
-  const handlePopKey = (e) => {
-    if (e.target === customInputRef.current) {
-      if (e.key === "Escape") { e.preventDefault(); doOpen(false); return; }
-      if (e.key === "Enter" && customPrefix.trim()) {
-        e.preventDefault();
-        upd("prefix", customPrefix.trim());
-        setCustomPrefix("");
-        return;
-      }
-      if (e.key === "ArrowUp") { e.preventDefault(); setFocusIdx(moveVertical(-1)); customInputRef.current?.blur(); return; }
-      if (e.key === "ArrowDown") { e.preventDefault(); setFocusIdx(moveVertical(1)); customInputRef.current?.blur(); return; }
-      return;
-    }
-    if (e.key === "Escape") { e.preventDefault(); doOpen(false); return; }
-    if (e.key === "ArrowRight") { e.preventDefault(); setFocusIdx((i) => (i + 1) % items.length); return; }
-    if (e.key === "ArrowLeft") { e.preventDefault(); setFocusIdx((i) => (i - 1 + items.length) % items.length); return; }
-    if (e.key === "ArrowDown") { e.preventDefault(); setFocusIdx(moveVertical(1)); return; }
-    if (e.key === "ArrowUp") { e.preventDefault(); setFocusIdx(moveVertical(-1)); return; }
-    if (e.key === "Enter") { e.preventDefault(); selectItem(focusIdx); return; }
-  };
-
-  const popRef = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const item = items[focusIdx];
-    if (item?.type === "custom") customInputRef.current?.focus();
-    else popRef.current?.focus();
-  }, [open, focusIdx]);
-
-  const mkPrefixBtn = (v, itemIdx) => {
-    const sel = cell.prefix === v;
-    const focused = open && focusIdx === itemIdx;
-    return (
-      <button key={v} onClick={() => { togglePrefix(v); setFocusIdx(itemIdx); }}
-        onMouseEnter={() => setFocusIdx(itemIdx)}
-        style={{
-          padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-          background: sel ? "#e5e7eb" : "#f9fafb", color: sel ? "#111" : "#6b7280",
-          fontSize: 12, fontWeight: 600, lineHeight: "18px",
-          border: sel ? "2px solid #374151" : "2px solid transparent",
-          outline: focused ? "2px solid #3b82f6" : "none", outlineOffset: 1,
-          transition: "all .1s",
-        }}>{v}</button>
-    );
-  };
-
-  const mkTagBtn = (v, c, tx, itemIdx) => {
-    const sel = cell.tag === v;
-    const focused = open && focusIdx === itemIdx;
-    return (
-      <button key={v} onClick={() => { toggleTag(v); setFocusIdx(itemIdx); }}
-        onMouseEnter={() => setFocusIdx(itemIdx)}
-        style={{
-          padding: "3px 8px", borderRadius: 4, cursor: "pointer",
-          background: v ? c : "#f3f4f6", color: v ? tx : "#6b7280",
-          fontSize: 12, fontWeight: 600, lineHeight: "18px",
-          border: sel ? "2px solid #111" : "2px solid transparent",
-          opacity: sel ? 1 : 0.75, transition: "all .1s",
-          outline: focused ? "2px solid #3b82f6" : "none", outlineOffset: 1,
-        }}>{v}</button>
-    );
-  };
-
-  const trigger = hasAny ? (
-    <div onClick={() => doOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 3, cursor: "pointer", flexShrink: 0 }}>
-      {hasPrefix && <span style={{
-        padding: "1px 5px", borderRadius: 4, background: "#f3f4f6", color: "#374151",
-        fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "18px",
-      }}>{cell.prefix}</span>}
-      {hasTag && <span style={{
-        padding: "1px 7px", borderRadius: 4, background: tc.c, color: tc.tx,
-        fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", lineHeight: "18px",
-      }}>{cell.tag}</span>}
-    </div>
-  ) : (
-    <button onClick={() => doOpen(!open)} title="접두사/태그 추가 (Ctrl+T)" style={{
-      width: 20, height: 20, borderRadius: "50%", cursor: "pointer",
-      fontSize: 14, fontWeight: 400, flexShrink: 0, lineHeight: 1,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "#f0f0f0", color: "#aaa", border: "none", transition: "all .15s",
-    }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "#e0e7ff"; e.currentTarget.style.color = "#3b82f6"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "#f0f0f0"; e.currentTarget.style.color = "#aaa"; }}
-    >+</button>
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const h = (e) => {
-      if (ref.current?.contains(e.target)) return;
-      if (popRef.current?.contains(e.target)) return;
-      if (e.target.closest?.("[data-cellprops-pop]")) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [open]);
-
-  const getPopPos = () => {
-    if (!ref.current) return { top: 0, left: 0 };
-    const r = ref.current.getBoundingClientRect();
-    const popW = 260, popH = 320;
+  const filtered = filter ? allTags.filter((t) => t.v.includes(filter)) : allTags;
+  if (filtered.length === 0) return null;
+  const getPos = () => {
+    if (!anchorEl) return { top: 0, left: 0 };
+    const r = anchorEl.getBoundingClientRect();
     let top = r.bottom + 4;
     let left = r.left;
-    if (left + popW > window.innerWidth - 8) left = window.innerWidth - popW - 8;
-    if (top + popH > window.innerHeight - 8) top = r.top - popH - 4;
+    if (left + 220 > window.innerWidth - 8) left = window.innerWidth - 228;
+    if (top + 200 > window.innerHeight - 8) top = r.top - 200;
     return { top, left };
   };
-
-  const openFromKey = () => doOpen((o) => !o);
-  useEffect(() => { if (ref.current) ref.current.__openCellProps = openFromKey; });
-
-  return (
-    <div ref={ref} style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
-      {!hideTrigger && trigger}
-      {open && createPortal(
-        <div ref={popRef} data-cellprops-pop tabIndex={-1} onKeyDown={handlePopKey} style={{
-          position: "fixed", ...getPopPos(), zIndex: 1000,
-          background: "#fff", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
-          padding: "10px 12px", width: 260, outline: "none",
-        }}>
-          {/* 접두사 섹션 */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 0.5 }}>접두사</span>
-            {hasPrefix && <button onClick={() => upd("prefix", "")} tabIndex={-1} style={{
-              fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 600,
-            }}>해제</button>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
-            {PREFIX_NUMBERS.map((n, i) => mkPrefixBtn(n, prefixNumStart + i))}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
-            {PREFIX_BULLETS.map((b, i) => mkPrefixBtn(b, prefixBulletStart + i))}
-          </div>
-          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
-            <input ref={customInputRef} value={customPrefix} onChange={(e) => setCustomPrefix(e.target.value)}
-              placeholder="직접 입력..."
-              onFocus={() => setFocusIdx(customIdx)}
-              style={{
-                flex: 1, padding: "4px 8px", borderRadius: 4, fontSize: 12, boxSizing: "border-box",
-                border: focusIdx === customIdx ? "1.5px solid #3b82f6" : "1px solid #e5e7eb", outline: "none",
-              }} />
-            <button tabIndex={-1} onClick={() => { if (customPrefix.trim()) { upd("prefix", customPrefix.trim()); setCustomPrefix(""); } }} style={{
-              padding: "4px 10px", borderRadius: 4, border: "none", cursor: "pointer",
-              background: customPrefix.trim() ? "#3b82f6" : "#e5e7eb", color: customPrefix.trim() ? "#fff" : "#aaa",
-              fontSize: 12, fontWeight: 600, transition: "all .15s",
-            }}>적용</button>
-          </div>
-
-          <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0 10px" }} />
-
-          {/* 태그 섹션 */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "#888", letterSpacing: 0.5 }}>태그</span>
-            {hasTag && <button onClick={() => upd("tag", "")} tabIndex={-1} style={{
-              fontSize: 10, color: "#ef4444", background: "none", border: "none", cursor: "pointer", fontWeight: 600,
-            }}>해제</button>}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {allTags.map((t, i) => mkTagBtn(t.v, t.c, t.tx, tagStart + i))}
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
+  return createPortal(
+    <div data-tag-dropdown style={{
+      position: "fixed", ...getPos(), zIndex: 1000,
+      background: "#fff", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
+      padding: "6px 4px", minWidth: 160,
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: "#aaa", padding: "2px 8px 4px", letterSpacing: 0.5 }}>태그 삽입</div>
+      {filtered.map((t, i) => (
+        <button key={t.v} onClick={() => onSelect(t.v)}
+          onMouseEnter={() => {}}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px",
+            border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600,
+            background: i === focusIdx ? "#f0f4ff" : "transparent", color: "#374151",
+            textAlign: "left",
+          }}>
+          <span style={{
+            display: "inline-block", padding: "1px 8px", borderRadius: 3,
+            background: t.c, color: t.tx, fontSize: 11, fontWeight: 700, lineHeight: "18px",
+          }}>{t.v}</span>
+        </button>
+      ))}
+    </div>,
+    document.body
   );
 }
 
@@ -358,11 +217,10 @@ function CellArrows({ onUp, onDown, first, last }) {
 }
 
 function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, rows, isFocused, onCellFocus, onSwitchCol, compact }) {
-  const cellPropsRef = useRef(null);
   const textInputRef = useRef(null);
-  const tc = tagColor(cell.tag, tags);
-  const hasTag = !!cell.tag;
-  const hasPrefix = !!cell.prefix;
+  const [tagDrop, setTagDrop] = useState(null); // { hashIdx, filter }
+  const [tagFocusIdx, setTagFocusIdx] = useState(0);
+
   const TB = (active, onClick, title, children, color, textColor) => (
     <button onClick={onClick} title={title} style={{
       width: 20, height: 20, border: "none", borderRadius: 3, cursor: "pointer",
@@ -372,9 +230,55 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     }}>{children}</button>
   );
   const borderColor = cell.hdr ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
-  const openProps = () => cellPropsRef.current?.querySelector("div")?.__openCellProps?.();
+
+  // # 태그 드롭다운 필터링된 태그 목록
+  const allTags = tags || DEFAULT_TAGS;
+  const filteredTags = tagDrop ? (tagDrop.filter ? allTags.filter((t) => t.v.includes(tagDrop.filter)) : allTags) : [];
+
+  const selectTag = (tagName) => {
+    if (!tagDrop) return;
+    const before = cell.text.substring(0, tagDrop.hashIdx);
+    const after = cell.text.substring(tagDrop.hashIdx + 1 + tagDrop.filter.length);
+    const newText = before + "#" + tagName + " " + after;
+    upd("text", newText);
+    setTagDrop(null);
+    const newCursor = before.length + 1 + tagName.length + 1;
+    setTimeout(() => {
+      if (textInputRef.current) {
+        textInputRef.current.selectionStart = newCursor;
+        textInputRef.current.selectionEnd = newCursor;
+        textInputRef.current.focus();
+      }
+    }, 0);
+  };
+
+  const handleTextChange = (e) => {
+    const newText = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    upd("text", newText);
+    // # 트리거 감지
+    const beforeCursor = newText.substring(0, cursorPos);
+    const lastHash = beforeCursor.lastIndexOf("#");
+    if (lastHash !== -1) {
+      const partial = beforeCursor.substring(lastHash + 1);
+      if (!partial.includes(" ")) {
+        setTagDrop({ hashIdx: lastHash, filter: partial });
+        setTagFocusIdx(0);
+        return;
+      }
+    }
+    setTagDrop(null);
+  };
+
   const inputKeyDown = (e) => {
-    if (e.ctrlKey && e.key === "t") { e.preventDefault(); openProps(); return; }
+    // 태그 드롭다운이 열려있을 때
+    if (tagDrop && filteredTags.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setTagFocusIdx((i) => Math.min(i + 1, filteredTags.length - 1)); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setTagFocusIdx((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); selectTag(filteredTags[tagFocusIdx].v); return; }
+      if (e.key === "Escape") { e.preventDefault(); setTagDrop(null); return; }
+      return;
+    }
     if (e.ctrlKey && (e.key === "1" || e.key === "2")) { e.preventDefault(); onSwitchCol?.(e.key === "1" ? "l" : "r"); return; }
     if (e.ctrlKey && e.key === "b") { e.preventDefault(); upd("bold", !cell.bold); return; }
     if (e.ctrlKey && e.key === "h") { e.preventDefault(); upd("hdr", !cell.hdr); return; }
@@ -385,6 +289,14 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     if (e.key === "ArrowUp") { e.preventDefault(); const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelector("input"); if (prev) prev.focus(); }
   };
 
+  // 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    if (!tagDrop) return;
+    const h = (e) => { if (!e.target.closest("[data-tag-dropdown]")) setTagDrop(null); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [tagDrop]);
+
   /* ── 컴팩트 모드: 1줄 ── */
   if (compact) return (
     <div style={{
@@ -392,15 +304,13 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
       display: "flex", alignItems: "center", gap: 3,
       borderLeft: `3px solid ${borderColor}`,
     }}>
-      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center" }} onClick={openProps}>
-        <span style={{ fontSize: 9, fontWeight: 700, width: 16, textAlign: "center", userSelect: "none", cursor: "pointer", color: "#bbb", lineHeight: "18px" }}>{idx + 1}</span>
-        <CellProps cell={cell} upd={upd} tags={tags} onClose={() => textInputRef.current?.focus()} hideTrigger />
-      </div>
-      {hasPrefix && <span style={{ padding: "0 4px", borderRadius: 3, background: "#f3f4f6", color: "#374151", fontSize: 9, fontWeight: 600, lineHeight: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>{cell.prefix}</span>}
-      {hasTag && <span style={{ padding: "0 5px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9, fontWeight: 700, lineHeight: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>{cell.tag}</span>}
-      <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder=""
+      <span style={{ fontSize: 9, fontWeight: 700, width: 16, textAlign: "center", userSelect: "none", color: "#bbb", lineHeight: "18px", flexShrink: 0 }}>{idx + 1}</span>
+      <input ref={textInputRef} value={cell.text} onChange={handleTextChange} placeholder=""
         onFocus={onCellFocus} onKeyDown={inputKeyDown}
         style={{ flex: 1, padding: "1px 4px", border: isFocused ? "1px solid #3b82f6" : "1px solid transparent", borderRadius: 2, fontSize: 12, outline: "none", background: "transparent", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
+      {tagDrop && filteredTags.length > 0 && (
+        <TagDropdown tags={tags} filter={tagDrop.filter} anchorEl={textInputRef.current} onSelect={selectTag} onClose={() => setTagDrop(null)} focusIdx={tagFocusIdx} />
+      )}
     </div>
   );
 
@@ -411,44 +321,20 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
       display: "flex", gap: 4,
       borderLeft: `3px solid ${borderColor}`,
     }}>
-      {/* 행번호 (클릭→접두사/태그 팝오버) */}
-      <div ref={cellPropsRef} style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
-        onClick={openProps}>
-        <span title="접두사/태그 추가 (Ctrl+T)"
-          style={{
-            fontSize: 9, fontWeight: 700, width: 18, textAlign: "center", flexShrink: 0, userSelect: "none", cursor: "pointer",
-            borderRadius: 3, lineHeight: "16px",
-            background: "transparent", color: "#bbb",
-          }}>{idx + 1}</span>
-        <CellProps cell={cell} upd={upd} tags={tags} onClose={() => textInputRef.current?.focus()} hideTrigger />
+      {/* 행번호 */}
+      <div style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{
+          fontSize: 9, fontWeight: 700, width: 18, textAlign: "center", flexShrink: 0, userSelect: "none",
+          borderRadius: 3, lineHeight: "16px", background: "transparent", color: "#bbb",
+        }}>{idx + 1}</span>
       </div>
-      {/* 들여쓰기 세로선 가이드 */}
       {/* 콘텐츠: 2줄 구조 */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
-        {/* 상단: 태그/마커 뱃지 + 속성 버튼 */}
+        {/* 상단: 속성 버튼 */}
         <div style={{ display: "flex", alignItems: "center", gap: 3, height: 18, minHeight: 18 }}>
-          {hasPrefix ? (
-            <span onClick={openProps} style={{
-              padding: "0 5px", borderRadius: 3, background: "#f3f4f6", color: "#374151",
-              fontSize: 10, fontWeight: 600, cursor: "pointer", lineHeight: "16px", whiteSpace: "nowrap",
-            }}>{cell.prefix}</span>
-          ) : isFocused ? (
-            <span onClick={openProps} style={{
-              fontSize: 9, color: "#bbb", cursor: "pointer", padding: "0 4px",
-              border: "1px dashed #d1d5db", borderRadius: 3, lineHeight: "14px", whiteSpace: "nowrap",
-            }}>+접두사</span>
-          ) : null}
-          {hasTag ? (
-            <span onClick={openProps} style={{
-              padding: "0 6px", borderRadius: 3, background: tc.c, color: tc.tx,
-              fontSize: 10, fontWeight: 700, cursor: "pointer", lineHeight: "16px", whiteSpace: "nowrap",
-            }}>{cell.tag}</span>
-          ) : isFocused ? (
-            <span onClick={openProps} style={{
-              fontSize: 9, color: "#bbb", cursor: "pointer", padding: "0 4px",
-              border: "1px dashed #d1d5db", borderRadius: 3, lineHeight: "14px", whiteSpace: "nowrap",
-            }}>+태그</span>
-          ) : null}
+          {isFocused && <span style={{ fontSize: 9, color: "#bbb", padding: "0 4px", lineHeight: "14px" }}>
+            #태그 [라벨]
+          </span>}
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
             {TB(cell.hdr, () => upd("hdr", !cell.hdr), "헤더 (Ctrl+H)", "H", "#00391e", "#fff")}
@@ -459,11 +345,14 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
         </div>
         {/* 하단: 텍스트 입력 */}
         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <input ref={textInputRef} value={cell.text} onChange={(e) => upd("text", e.target.value)} placeholder="내용..."
+          <input ref={textInputRef} value={cell.text} onChange={handleTextChange} placeholder="내용... (#태그, [라벨] 입력 가능)"
             onFocus={onCellFocus} onKeyDown={inputKeyDown}
             style={{ flex: 1, padding: "3px 6px", border: isFocused ? "1px solid #3b82f6" : "1px solid #e5e7eb", borderRadius: 3, fontSize: 13, outline: "none", background: "#fff", minWidth: 0, fontWeight: cell.bold ? 700 : 400, color: "#1f2937" }} />
         </div>
       </div>
+      {tagDrop && filteredTags.length > 0 && (
+        <TagDropdown tags={tags} filter={tagDrop.filter} anchorEl={textInputRef.current} onSelect={selectTag} onClose={() => setTagDrop(null)} focusIdx={tagFocusIdx} />
+      )}
     </div>
   );
 }
@@ -532,8 +421,7 @@ function Preview({ unit, isBlank, fontFamily, tags, printId }) {
             const renderCell = (cell, side) => {
               const isHdr = cell.hdr;
               const show = !isBlank || cell.vis;
-              const tc = tagColor(cell.tag, tags);
-              const empty = !cell.tag && !cell.prefix && !cell.text && !isHdr;
+              const empty = !cell.text && !isHdr;
               const nxtHdr = side === "l" ? nextRow?.l.hdr : nextRow?.r.hdr;
               const btm = isLast ? "none" : ((isHdr && !nxtHdr) || (!isHdr && nxtHdr)) ? "2px solid #00391e" : "1px solid #e5e7eb";
               const extra = side === "r" ? { borderLeft: "2px solid #00391e" } : {};
@@ -542,24 +430,11 @@ function Preview({ unit, isBlank, fontFamily, tags, printId }) {
                   <span style={{ ...TEXT_CLIP }}>{cell.text}</span>
                 </div>
               );
+              const segments = parseInlineMarkup(cell.text, tags);
               return (
                 <div style={{ ...CELL_STYLE, padding: "0 10px", background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
-                  {cell.prefix && (
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.prefix}</span>
-                  )}
-                  {cell.tag && (
-                    <span style={{
-                      display: "inline-block", padding: "1px 7px", borderRadius: 3,
-                      background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px",
-                    }}>{cell.tag}</span>
-                  )}
-                  {show && cell.text && (
-                    <span style={{
-                      ...TEXT_CLIP, fontSize: 12, color: "#1f2937", lineHeight: `${ROW_H}px`,
-                      fontWeight: cell.bold ? 700 : 400,
-                      textDecoration: cell.bold ? "underline" : "none",
-                      textUnderlineOffset: 3, textDecorationColor: "#aaa",
-                    }}>{cell.text}</span>
+                  {cell.text && (
+                    <RenderSegments segments={segments} bold={cell.bold} showText={show} />
                   )}
                 </div>
               );
@@ -583,28 +458,44 @@ function Preview({ unit, isBlank, fontFamily, tags, printId }) {
   );
 }
 
+/* ═══════ RenderSegments — parseInlineMarkup 결과를 렌더링 ═══════ */
+function RenderSegments({ segments, bold, fontSize = 12, showText = true }) {
+  return segments.map((seg, i) => {
+    if (seg.type === "tag") return (
+      <span key={i} style={{
+        display: "inline-block", padding: "1px 7px", borderRadius: 3,
+        background: seg.c, color: seg.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px",
+      }}>{seg.value}</span>
+    );
+    if (seg.type === "label") return (
+      <span key={i} style={{
+        display: "inline-block", padding: "1px 5px", borderRadius: 3,
+        background: "#f3f4f6", color: "#374151", fontSize: 11, fontWeight: 600, flexShrink: 0, lineHeight: "16px",
+      }}>{seg.value}</span>
+    );
+    return (
+      <span key={i} style={{
+        fontSize, color: showText ? "#1f2937" : "transparent", fontWeight: bold ? 700 : 400,
+        textDecoration: bold && showText ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa",
+      }}>{seg.value}</span>
+    );
+  });
+}
+
 /* ═══════ InlinePreviewCell — 편집 행과 나란히 보여주는 셀 미리보기 ═══════ */
 function InlinePreviewCell({ cell, isBlank, tags, onClick, isFocused }) {
-  const isEmpty = !cell.tag && !cell.prefix && !cell.text && !cell.hdr;
+  const isEmpty = !cell.text && !cell.hdr;
   const show = !isBlank || cell.vis;
-  const tc = tagColor(cell.tag, tags);
   if (cell.hdr) return (
     <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", padding: "0 10px", background: isFocused ? "#eef4ff" : "#fff", fontWeight: 800, fontSize: 12, color: "#00391e", letterSpacing: 2, overflow: "hidden", borderBottom: "2px solid #c8d9ca", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cell.text}</span>
     </div>
   );
+  const segments = parseInlineMarkup(cell.text, tags);
   return (
-    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: "0 10px", background: isFocused ? "#eef4ff" : (isEmpty ? "#fafafa" : "#fff"), overflow: "hidden", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none" }}>
-      {cell.prefix && (
-        <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", flexShrink: 0 }}>{cell.prefix}</span>
-      )}
-      {cell.tag && (
-        <span style={{ padding: "1px 7px", borderRadius: 3, background: tc.c, color: tc.tx, fontSize: 9.5, fontWeight: 700, flexShrink: 0, lineHeight: "16px" }}>{cell.tag}</span>
-      )}
-      {show && cell.text ? (
-        <span style={{ fontSize: 12, color: "#1f2937", fontWeight: cell.bold ? 700 : 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: cell.bold ? "underline" : "none", textUnderlineOffset: 3, textDecorationColor: "#aaa" }}>{cell.text}</span>
-      ) : (!show && cell.text) ? (
-        <span style={{ fontSize: 12, color: "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>••••••</span>
+    <div onClick={onClick} style={{ height: ROW_H, display: "flex", alignItems: "center", gap: 4, padding: "0 10px", background: isFocused ? "#eef4ff" : (isEmpty ? "#fafafa" : "#fff"), overflow: "hidden", cursor: "pointer", boxShadow: isFocused ? "inset 0 0 0 1.5px #3b82f6" : "none", whiteSpace: "nowrap" }}>
+      {cell.text ? (
+        <RenderSegments segments={segments} bold={cell.bold} showText={show} />
       ) : null}
     </div>
   );
@@ -756,9 +647,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     });
   };
 
-  // 마이그레이션 (구 형식 파일 지원)
+  // 마이그레이션 (구 형식 파일 지원 → 인라인 마크업으로 변환)
   const migrateUnit = (p) => {
     if (!p.rows) return p;
+    const OLD_NUM_TAG_SET = new Set(["1","2","3","4","5","6","7","8","9","10"]);
+    const OLD_PTAG_VALUES = new Set(["영작", "수동태", "(1)", "(2)"]);
     // 구 형식: unit 안에 settings가 있으면 전역 설정으로 흡수 (최초 1회)
     if (p.settings) {
       const us = p.settings;
@@ -781,25 +674,27 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         if (!c.mark) { const pv = c.ptag; c.mark = (pv === "영작" || pv === "수동태") ? `[${pv}]` : pv; }
         delete c.ptag;
       }
-      if (c.tag && OLD_PTAG_VALUES.has(c.tag)) {
-        if (!c.mark) { const tv = c.tag; c.mark = (tv === "영작" || tv === "수동태") ? `[${tv}]` : tv; }
-        c.tag = "";
-      }
-      // mark → prefix/tag 마이그레이션 (새 구조)
-      if (c.prefix === undefined) {
+      // prefix/tag/mark가 있으면 → text에 인라인 병합
+      if (c.tag !== undefined || c.prefix !== undefined || c.mark !== undefined) {
+        const parts = [];
+        const tag = c.tag || "";
+        if (tag && !OLD_NUM_TAG_SET.has(tag) && !OLD_PTAG_VALUES.has(tag)) {
+          parts.push("#" + tag);
+        }
+        const prefix = c.prefix || "";
         const mark = c.mark || "";
-        // 숫자태그(1-10)를 tag에서 prefix로 이동
-        if (c.tag && OLD_NUM_TAG_SET.has(c.tag)) {
-          c.prefix = c.tag;
-          c.tag = "";
-        } else {
-          c.prefix = "";
+        const inlineVal = prefix || mark || "";
+        if (inlineVal) {
+          if (tag && OLD_NUM_TAG_SET.has(tag)) parts.push(tag);
+          parts.push(inlineVal);
+        } else if (tag && OLD_NUM_TAG_SET.has(tag)) {
+          parts.push(tag);
+        } else if (tag && OLD_PTAG_VALUES.has(tag)) {
+          parts.push((tag === "영작" || tag === "수동태") ? `[${tag}]` : tag);
         }
-        // 모든 마커 → prefix로 이동 (대괄호 라벨 포함)
-        if (mark && !c.prefix) {
-          c.prefix = mark;
-        }
-        delete c.mark;
+        if (c.text) parts.push(c.text);
+        c.text = parts.join(" ");
+        delete c.tag; delete c.prefix; delete c.mark;
       }
     }); });
     return p;
@@ -1434,6 +1329,8 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   {/* 단축키 힌트 */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 12px", background: "#f8f8f8", borderBottom: "1px solid #eee" }}>
                     {[
+                      ["#", "태그"],
+                      ["[...]", "라벨"],
                       ["Ctrl+1/2", "열 전환"],
                       ["Ctrl+H", "헤더"],
                       ["Ctrl+B", "굵게"],
@@ -1597,11 +1494,13 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       nTags[idx] = { ...nTags[idx], v: nv };
                       setSettings({ tags: nTags });
                       if (oldV && oldV !== nv && unit) {
+                        // text 안의 #oldTag → #newTag 치환
+                        const replaceTag = (text) => text.replace(new RegExp("#" + oldV.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=\\s|$)", "g"), "#" + nv);
                         updateUnit((u) => ({
                           ...u, rows: u.rows.map((r) => ({
                             ...r,
-                            l: r.l.tag === oldV ? { ...r.l, tag: nv } : r.l,
-                            r: r.r.tag === oldV ? { ...r.r, tag: nv } : r.r,
+                            l: { ...r.l, text: replaceTag(r.l.text) },
+                            r: { ...r.r, text: replaceTag(r.r.text) },
                           }))
                         }));
                       }
