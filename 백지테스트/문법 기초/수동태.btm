@@ -4,663 +4,332 @@
     {
       "id": "23ecx3wl",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "SUMMARY",
-        "vis": true,
-        "bold": false,
-        "hdr": true,
+        "text": "== SUMMARY ==",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
-        "text": "PRACTICE",
-        "vis": true,
-        "bold": false,
-        "hdr": true,
+        "text": "== PRACTICE ==",
         "indent": 0
       }
     },
     {
       "id": "p47q88cp",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "능동: 주어가 동사를 직접 함",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*능동: 주어가 동사를 직접 함*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
-        "text": "영작 & 수동태 전환 연습",
-        "vis": true,
-        "bold": true,
-        "hdr": false,
+        "text": "**<영작 & 수동태 전환 연습>**",
         "indent": 0
       }
     },
     {
       "id": "sqgm6tkm",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "수동: 주어가 동사를 다른 행위자에 의해 당함",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*수동: 주어가 동사를 다른 행위자에 의해 당함*",
         "indent": 0
       },
       "r": {
-        "tag": "1",
-        "mark": "",
-        "text": "나의 친구들은 나를 사랑한다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**1 나의 친구들은 나를 사랑한다.**",
         "indent": 0
       }
     },
     {
       "id": "mrnnw2cw",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "My friends love me.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] My friends love me.*",
         "indent": 0
       }
     },
     {
       "id": "ybro2t5r",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "능동태 -> 수동태 전환방법",
-        "vis": true,
-        "bold": true,
-        "hdr": false,
+        "text": "*<능동태 -> 수동태 전환방법>*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "I am loved by my friends.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] I am loved by my friends.*",
         "indent": 0
       }
     },
     {
       "id": "07c66xa2",
       "l": {
-        "tag": "예문",
-        "mark": "",
-        "text": "She wrote a letter.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "#예문 She wrote a letter.",
         "indent": 0
       },
       "r": {
-        "tag": "2",
-        "mark": "",
-        "text": "나는 접시들을 씻는다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**2 나는 접시들을 씻는다.**",
         "indent": 0
       }
     },
     {
       "id": "muhk4dsp",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "1) 능동태의 주어, 동사, 목적어를 찾는다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "I wash the dishes.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] I wash the dishes.*",
         "indent": 0
       }
     },
     {
       "id": "ugeijg59",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "=> 주어: She / 동사: wrote / 목적어: a letter",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "The dishes are washed by me.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] The dishes are washed by me.*",
         "indent": 0
       }
     },
     {
       "id": "s68bo4kc",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "2) 능동태의 시제를 파악한다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "3",
-        "mark": "",
-        "text": "그는 창문을 닫았다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**3 그는 창문을 닫았다.**",
         "indent": 0
       }
     },
     {
       "id": "jd2287vp",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "=> 과거",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "He closed the window.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] He closed the window.*",
         "indent": 0
       }
     },
     {
       "id": "3i7ud63b",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "3) 능동태의 목적어를 수동태의 주어 자리에 쓴다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "The window was closed by him.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] The window was closed by him.*",
         "indent": 0
       }
     },
     {
       "id": "g5qlislk",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "=> A letter",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "4",
-        "mark": "",
-        "text": "Joy는 컵들을 깼다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**4 Joy는 컵들을 깼다.**",
         "indent": 0
       }
     },
     {
       "id": "j6zof1z8",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "4) be동사를 수/시제에 맞게 쓴다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*4) be동사를 수/시제에 맞게 쓴다.*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "Joy broke the cups.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] Joy broke the cups.*",
         "indent": 0
       }
     },
     {
       "id": "xqou5vvu",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "=> A letter was",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*=> A letter was*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "The cups were broken by Joy.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] The cups were broken by Joy.*",
         "indent": 0
       }
     },
     {
       "id": "cnytqy80",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "5) 동사를 p.p형태로 바꾼다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*5) 동사를 p.p형태로 바꾼다.*",
         "indent": 0
       },
       "r": {
-        "tag": "5",
-        "mark": "",
-        "text": "그녀는 파티를 개최할 것이다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**5 그녀는 파티를 개최할 것이다.**",
         "indent": 0
       }
     },
     {
       "id": "iv48ixrm",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "=> A letter was written",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*=> A letter was written*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "She will hold a party.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] She will hold a party.*",
         "indent": 0
       }
     },
     {
       "id": "ln5ayffa",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "6) by + 원래 주어를 목적격으로 쓴다.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*6) by + 원래 주어를 목적격으로 쓴다.*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "A party will be held by her.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] A party will be held by her.*",
         "indent": 0
       }
     },
     {
       "id": "bs9402v2",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "=> A letter was written by her.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*=> A letter was written by her.*",
         "indent": 0
       },
       "r": {
-        "tag": "6",
-        "mark": "",
-        "text": "할머니는 케이크를 구울 것이다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**6 할머니는 케이크를 구울 것이다.**",
         "indent": 0
       }
     },
     {
       "id": "xk2ghv5p",
       "l": {
-        "tag": "주의",
-        "mark": "",
-        "text": "A letter was written by she. (X)",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "#예문 와이라노~~~ ㅠㅠ ㅋㅋㅋㅋ",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "Grandma will bake the cake.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "[영 Grandma will bake the cake.",
         "indent": 0
       }
     },
     {
       "id": "v0vjg233",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "ㅋㅋ왜이럼? ㅋ 아하 이제 된다 [마커도?] 오호",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "The cake will be baked by Grandma.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*수동태The cake will be baked by Grandma.수동태The cake will be baked by Grandma.*",
         "indent": 0
       }
     },
     {
       "id": "04nruo38",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "by + 목적격의 생략",
-        "vis": true,
-        "bold": true,
-        "hdr": false,
+        "text": "**<by + 목적격의 생략>**",
         "indent": 0
       },
       "r": {
-        "tag": "7",
-        "mark": "",
-        "text": "사람들은 미국에서 영어를 말한다.",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
+        "text": "**7 사람들은 미국에서 영어를 말한다.**",
         "indent": 0
       }
     },
     {
       "id": "1nmxqpei",
       "l": {
-        "tag": "개념",
-        "mark": "",
-        "text": "행위자가 분명하지 않거나 중요하지 않을 때",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*#개념 행위자가 분명하지 않거나 중요하지 않을 때*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[영작]",
-        "text": "People speak English in America.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[영작] People speak English in America.*",
         "indent": 0
       }
     },
     {
       "id": "0ayxuckb",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "by + 목적격은 생략할 수 있다",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*by + 목적격은 생략할 수 있다*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "[수동태]",
-        "text": "English is spoken in America.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*[수동태] English is spoken in America.*",
         "indent": 0
       }
     },
     {
       "id": "ciu8o2u5",
       "l": {
-        "tag": "예문",
-        "mark": "",
-        "text": "Someone planted the tree in 1995.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*#예문 Someone planted the tree in 1995.*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "ehepem2o",
       "l": {
-        "tag": "",
-        "mark": "",
-        "text": "=> The tree was planted in 1995.",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
+        "text": "*=> The tree was planted in 1995.*",
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": true,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "zohb3xem",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "ghkmvd1c",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "9hsprv1y",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "06n4cpbp",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     },
     {
       "id": "uzva7yv5",
       "l": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       },
       "r": {
-        "tag": "",
-        "mark": "",
         "text": "",
-        "vis": false,
-        "bold": false,
-        "hdr": false,
         "indent": 0
       }
     }
-  ],
-  "settings": {
-    "logo": null,
-    "slogan": "손에 잡히는 영어",
-    "tags": [
-      {
-        "v": "개념",
-        "c": "#2563EB",
-        "tx": "#fff"
-      },
-      {
-        "v": "형태",
-        "c": "#ec6619",
-        "tx": "#fff"
-      },
-      {
-        "v": "예문",
-        "c": "#059669",
-        "tx": "#fff"
-      },
-      {
-        "v": "주의",
-        "c": "#dc2626",
-        "tx": "#fff"
-      },
-      {
-        "v": "예시",
-        "c": "#7e7e7f",
-        "tx": "#fff"
-      }
-    ]
-  }
+  ]
 }
