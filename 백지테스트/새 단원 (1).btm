@@ -25,13 +25,13 @@
     {
       "id": "lr6rj360",
       "l": {
-        "tag": "",
+        "tag": "개념",
         "mark": "",
-        "text": "",
+        "text": "ㅋㅋ",
         "vis": false,
         "bold": false,
         "hdr": false,
-        "indent": 0
+        "indent": 2
       },
       "r": {
         "tag": "",
@@ -48,11 +48,11 @@
       "l": {
         "tag": "",
         "mark": "",
-        "text": "",
+        "text": "ㄴ",
         "vis": false,
         "bold": false,
         "hdr": false,
-        "indent": 0
+        "indent": 1
       },
       "r": {
         "tag": "",
@@ -631,36 +631,5 @@
         "indent": 0
       }
     }
-  ],
-  "settings": {
-    "logo": null,
-    "slogan": "손에 잡히는 영어",
-    "tags": [
-      {
-        "v": "개념",
-        "c": "#2563EB",
-        "tx": "#fff"
-      },
-      {
-        "v": "형태",
-        "c": "#ec6619",
-        "tx": "#fff"
-      },
-      {
-        "v": "예문",
-        "c": "#059669",
-        "tx": "#fff"
-      },
-      {
-        "v": "주의",
-        "c": "#dc2626",
-        "tx": "#fff"
-      },
-      {
-        "v": "예시",
-        "c": "#7e7e7f",
-        "tx": "#fff"
-      }
-    ]
-  }
+  ]
 }

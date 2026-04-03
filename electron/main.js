@@ -246,8 +246,13 @@ ipcMain.handle("print-preview", async (event, { html }) => {
     webPreferences: { contextIsolation: true },
   });
   await printWin.loadFile(tmpHtml);
-  // 폰트/렌더링 대기
-  await new Promise((r) => setTimeout(r, 1500));
+  // 폰트/렌더링 대기 — document.fonts.ready 완료 후 진행 (최대 3초 타임아웃)
+  await Promise.race([
+    printWin.webContents.executeJavaScript("document.fonts.ready.then(() => true)"),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]);
+  // 렌더링 안정화를 위한 최소 대기
+  await new Promise((r) => setTimeout(r, 200));
   const pdfData = await printWin.webContents.printToPDF({
     pageSize: "A4",
     printBackground: true,

@@ -76,7 +76,7 @@
         "indent": 0
       },
       "r": {
-        "tag": "1",
+        "tag": "",
         "mark": "(1)",
         "text": "I know a boy.",
         "vis": false,
@@ -131,7 +131,7 @@
       "id": "r4r2gh59",
       "l": {
         "tag": "형태",
-        "mark": "(2)",
+        "mark": "",
         "text": "- 선행사가 사람일 때 : who",
         "vis": false,
         "bold": false,
@@ -157,7 +157,7 @@
         "vis": false,
         "bold": false,
         "hdr": false,
-        "indent": 0
+        "indent": 1
       },
       "r": {
         "tag": "",
@@ -174,7 +174,7 @@
       "l": {
         "tag": "예문",
         "mark": "",
-        "text": "She is a girl ( who likes pasta ). zz",
+        "text": "She is a girl ( who likes pasta ).",
         "vis": false,
         "bold": false,
         "hdr": false,
@@ -199,7 +199,7 @@
         "vis": false,
         "bold": false,
         "hdr": false,
-        "indent": 0
+        "indent": 1
       },
       "r": {
         "tag": "",
@@ -216,7 +216,7 @@
       "l": {
         "tag": "예문",
         "mark": "",
-        "text": "This is a house ( which is expensive ). dd",
+        "text": "This is a house ( which is expensive ).",
         "vis": false,
         "bold": false,
         "hdr": false,
@@ -241,7 +241,7 @@
         "vis": false,
         "bold": false,
         "hdr": false,
-        "indent": 0
+        "indent": 1
       },
       "r": {
         "tag": "",
@@ -279,7 +279,7 @@
       "l": {
         "tag": "개념",
         "mark": "",
-        "text": "목적격관계대명사는 관계대명사가 이끄는 절에서sdfsdf",
+        "text": "목적격관계대명사는 관계대명사가 이끄는 절에서",
         "vis": false,
         "bold": false,
         "hdr": false,

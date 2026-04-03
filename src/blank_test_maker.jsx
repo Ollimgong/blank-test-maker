@@ -767,6 +767,8 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const [editCol, setEditCol] = useState("l"); // "l" = 1열, "r" = 2열
   const [focusedRowId, setFocusedRowId] = useState(null); // 현재 편집 중인 행 ID
   const [fullPreview, setFullPreview] = useState(null); // null | "answer" | "blank"
+  const [fullPrintMenu, setFullPrintMenu] = useState(false);
+  const [fullPrintExtra, setFullPrintExtra] = useState(null); // 출력 시 임시 마운트용
   const [printZoom, setPrintZoom] = useState(100);
   const editorScrollRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -1590,14 +1592,55 @@ const [settingsOpen, setSettingsOpen] = useState(false);
 
       {/* A4 Full Preview Modal */}
       {fullPreview && unit && (
-        <div tabIndex={-1} autoFocus onKeyDown={(e) => { if (e.key === "Escape") setFullPreview(null); }} ref={(el) => el?.focus()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, outline: "none" }} onClick={() => setFullPreview(null)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", maxHeight: "95vh", overflowY: "auto", borderRadius: 8, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
+        <div tabIndex={-1} autoFocus onKeyDown={(e) => { if (e.key === "Escape") { setFullPrintMenu(false); setFullPreview(null); } }} ref={(el) => el?.focus()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, outline: "none" }} onClick={() => { setFullPrintMenu(false); setFullPreview(null); }}>
+          <div onClick={(e) => { e.stopPropagation(); setFullPrintMenu(false); }} style={{ position: "relative", maxHeight: "95vh", overflowY: "auto", borderRadius: 8, boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
             <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", justifyContent: "center", gap: 6, padding: "8px 0", background: "rgba(0,0,0,.4)", borderRadius: "8px 8px 0 0" }}>
               <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: fullPreview === "answer" ? "#fff" : "rgba(255,255,255,.2)", color: fullPreview === "answer" ? "#00391e" : "#fff" }}>답지 (ANSWER)</button>
               <button onClick={() => setFullPreview("blank")} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: fullPreview === "blank" ? "#fff" : "rgba(255,255,255,.2)", color: fullPreview === "blank" ? "#ec6619" : "#fff" }}>시험지 (WORKSHEET)</button>
-              <button onClick={() => setFullPreview(null)} style={{ padding: "4px 10px", borderRadius: 4, border: "none", fontSize: 14, cursor: "pointer", background: "rgba(255,255,255,.2)", color: "#fff", marginLeft: 8 }}>✕</button>
+              {(() => {
+                const doPrint = async (modes) => {
+                  if (!window.electronAPI) return;
+                  setPrinting(true);
+                  setFullPrintMenu(false);
+                  // 현재 안 보이는 모드가 필요하면 잠깐 마운트해서 HTML 추출
+                  const needOther = modes.length > 1 || modes[0] !== fullPreview;
+                  const otherMode = fullPreview === "answer" ? "blank" : "answer";
+                  if (needOther && modes.includes(otherMode)) setFullPrintExtra(otherMode);
+                  // 렌더 완료 대기
+                  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+                  const parts = modes.map((m) => {
+                    const el = document.getElementById(`fullpreview-${m}`);
+                    if (!el) return "";
+                    return `<div style="width:210mm;min-height:297mm;display:flex;justify-content:center;align-items:center;page-break-after:always">${el.innerHTML}</div>`;
+                  }).filter(Boolean);
+                  setFullPrintExtra(null); // 임시 마운트 해제
+                  if (!parts.length) { setPrinting(false); return; }
+                  const body = parts.join("");
+                  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+                    <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}div:last-child{page-break-after:auto!important}</style>
+                    </head><body>${body}</body></html>`;
+                  await window.electronAPI.printPreview(html);
+                  setPrinting(false);
+                };
+                return (<div style={{ position: "relative", marginLeft: 8 }} onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => setFullPrintMenu((v) => !v)} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: "#2563eb", color: "#fff" }}>🖨 출력 ▾</button>
+                  {fullPrintMenu && (
+                    <div style={{ position: "absolute", top: "calc(100% + 4px)", left: "50%", transform: "translateX(-50%)", background: "#fff", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,.25)", padding: 4, minWidth: 150, zIndex: 10 }}>
+                      <button onClick={() => doPrint([fullPreview === "answer" ? "answer" : "blank"])} style={{ display: "block", width: "100%", padding: "6px 12px", border: "none", background: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left", borderRadius: 4, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background = "#f3f4f6"} onMouseLeave={(e) => e.target.style.background = "none"}>{fullPreview === "answer" ? "답지만 출력" : "시험지만 출력"}</button>
+                      <button onClick={() => doPrint(["answer", "blank"])} style={{ display: "block", width: "100%", padding: "6px 12px", border: "none", background: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left", borderRadius: 4, color: "#1f2937" }} onMouseEnter={(e) => e.target.style.background = "#f3f4f6"} onMouseLeave={(e) => e.target.style.background = "none"}>답지 + 시험지 출력</button>
+                    </div>
+                  )}
+                </div>);
+              })()}
+              <button onClick={() => setFullPreview(null)} style={{ padding: "4px 10px", borderRadius: 4, border: "none", fontSize: 14, cursor: "pointer", background: "rgba(255,255,255,.2)", color: "#fff", marginLeft: 4 }}>✕</button>
             </div>
-            <Preview unit={unit} isBlank={fullPreview === "blank"} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} />
+            <Preview unit={unit} isBlank={fullPreview === "blank"} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} printId={`fullpreview-${fullPreview}`} />
+            {fullPrintExtra && (
+              <div style={{ position: "absolute", left: -9999, top: -9999, pointerEvents: "none" }}>
+                <Preview unit={unit} isBlank={fullPrintExtra === "blank"} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} numColor={settings.numTagColor} printId={`fullpreview-${fullPrintExtra}`} />
+              </div>
+            )}
           </div>
         </div>
       )}

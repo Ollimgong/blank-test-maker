@@ -15,8 +15,6 @@
 ├── electron/
 │   ├── main.js                # Electron 메인 프로세스
 │   └── preload.js             # contextBridge API
-├── docs/
-│   └── DESIGN_DECISIONS.md    # 설계 결정사항
 ├── index.html                 # Vite HTML 엔트리
 ├── vite.config.js
 ├── package.json
@@ -45,6 +43,7 @@
 ### 편집 모드
 - **편집기**: 2단(왼쪽/오른쪽) 테이블 형식으로 내용 입력
 - **실시간 미리보기**: 편집 화면 옆에 A4 비율 미리보기 동시 표시
+- **A4 미리보기 출력**: A4 전체 미리보기에서 답지만 / 시험지만 / 둘 다 바로 인쇄
 - **ANSWER/WORKSHEET 전환**: 각 셀의 "표시" 버튼으로 마킹하면 WORKSHEET 모드에서 자동 숨김
 - **자동저장**: 편집 후 1초 뒤 자동으로 파일에 저장
 - **태그 시스템**: 컬러칩 팝업으로 선택 — 숫자태그(1~10)와 일반태그(개념/형태/예문 등)
@@ -122,8 +121,8 @@ npm install
 
 ### 개발
 ```bash
-npm run dev              # Vite 개발 서버
-npm run electron:dev     # 빌드 후 Electron 실행
+npm run dev              # Vite HMR + Electron (기본 개발 명령어)
+npm run electron:dev     # Vite 빌드 → Electron (프로덕션 빌드 확인용)
 ```
 
 ### 배포 빌드
