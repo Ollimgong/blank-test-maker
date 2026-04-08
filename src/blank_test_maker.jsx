@@ -179,10 +179,11 @@ const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PR
 
 
 /* ═══════ TagDropdown — # 입력 시 태그 자동완성 ═══════ */
-function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx }) {
+function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx, darkMode }) {
   const allTags = tags || DEFAULT_TAGS;
   const filtered = filter ? allTags.filter((t) => t.v.includes(filter)) : allTags;
   if (filtered.length === 0) return null;
+  const dk = !!darkMode;
   const getPos = () => {
     if (!anchorEl) return { top: 0, left: 0 };
     const r = anchorEl.getBoundingClientRect();
@@ -195,17 +196,17 @@ function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx }) {
   return createPortal(
     <div data-tag-dropdown style={{
       position: "fixed", ...getPos(), zIndex: 1000,
-      background: "#fff", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
-      padding: "6px 4px", minWidth: 160,
+      background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 32px rgba(0,0,0,.45)" : "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
+      padding: "6px 4px", minWidth: 160, border: dk ? "1px solid #404155" : "none",
     }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#aaa", padding: "2px 8px 4px", letterSpacing: 0.5 }}>태그 삽입</div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: dk ? "#888" : "#aaa", padding: "2px 8px 4px", letterSpacing: 0.5 }}>태그 삽입</div>
       {filtered.map((t, i) => (
         <button key={t.v} onClick={() => onSelect(t.v)}
           onMouseEnter={() => {}}
           style={{
             display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px",
             border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600,
-            background: i === focusIdx ? "#f0f4ff" : "transparent", color: "#374151",
+            background: i === focusIdx ? (dk ? "#363850" : "#f0f4ff") : "transparent", color: dk ? "#d0d0dc" : "#374151",
             textAlign: "left",
           }}>
           <span style={{
@@ -258,19 +259,21 @@ const setCaretOffset = (el, offset) => {
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // 프리뷰용 (비포커스, 풀 렌더링 — 뱃지, 소제목 등)
-const segmentsToPreviewHTML = (segments, isBlank) => {
+const segmentsToPreviewHTML = (segments, isBlank, darkMode) => {
+  const dk = !!darkMode;
   return segments.map((seg) => {
-    if (seg.type === "header") return `<span style="font-weight:800;color:#00391e;letter-spacing:2px">${esc(seg.value)}</span>`;
+    if (seg.type === "header") return `<span style="font-weight:800;color:${dk ? "#7ecba1" : "#00391e"};letter-spacing:2px">${esc(seg.value)}</span>`;
     if (seg.type === "tag") return `<span style="display:inline-block;padding:1px 7px;border-radius:3px;background:${seg.c};color:${seg.tx};font-size:9.5px;font-weight:700;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
-    if (seg.type === "heading") return `<span style="font-weight:800;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#aaa">${esc(seg.value)}</span>`;
-    if (seg.type === "label") return `<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:#f3f4f6;color:#374151;font-size:11px;font-weight:600;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
-    return `<span style="color:${(isBlank && !seg.vis) ? "transparent" : seg.vis ? "#2563eb" : "#1f2937"}">${esc(seg.value)}</span>`;
+    if (seg.type === "heading") return `<span style="font-weight:800;color:${dk ? "#e0e0e8" : "inherit"};text-decoration:underline;text-underline-offset:3px;text-decoration-color:${dk ? "#555" : "#aaa"}">${esc(seg.value)}</span>`;
+    if (seg.type === "label") return `<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${dk ? "#363748" : "#f3f4f6"};color:${dk ? "#c0c0d0" : "#374151"};font-size:11px;font-weight:600;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
+    return `<span style="color:${(isBlank && !seg.vis) ? "transparent" : dk ? "#d0d0dc" : "#1f2937"}">${esc(seg.value)}</span>`;
   }).join("");
 };
 
 // 편집용 (포커스 중, 원본 텍스트 + 문법 하이라이팅)
-const textToEditHTML = (text, tags) => {
+const textToEditHTML = (text, tags, darkMode) => {
   if (!text) return "";
+  const dk = !!darkMode;
   const tagNames = (tags || DEFAULT_TAGS).map((t) => t.v).filter(Boolean);
   tagNames.sort((a, b) => b.length - a.length);
   let result = "";
@@ -278,19 +281,19 @@ const textToEditHTML = (text, tags) => {
   while (i < text.length) {
     // ## 소제목 하이라이팅 (줄 시작)
     if (i === 0 && text.startsWith("## ")) {
-      result += `<span style="color:#aaa">## </span><span style="font-weight:800;text-decoration:underline">${esc(text.substring(3))}</span>`;
+      result += `<span style="color:${dk ? "#666" : "#aaa"}">## </span><span style="font-weight:800;text-decoration:underline;color:${dk ? "#e0e0e8" : "inherit"}">${esc(text.substring(3))}</span>`;
       i = text.length;
       continue;
     }
     // # 헤더 하이라이팅 (줄 시작)
     if (i === 0 && text.startsWith("# ")) {
-      result += `<span style="color:#00391e;font-weight:800">${esc(text)}</span>`;
+      result += `<span style="color:${dk ? "#7ecba1" : "#00391e"};font-weight:800">${esc(text)}</span>`;
       i = text.length;
       continue;
     }
     // ! 보임 하이라이팅 (줄 시작)
     if (i === 0 && text.startsWith("! ")) {
-      result += `<span style="color:#aaa">! </span><span style="color:#2563eb">${esc(text.substring(2))}</span>`;
+      result += `<span style="color:${dk ? "#666" : "#aaa"}">! </span><span style="color:${dk ? "#d0d0dc" : "#1f2937"}">${esc(text.substring(2))}</span>`;
       i = text.length;
       continue;
     }
@@ -316,7 +319,7 @@ const textToEditHTML = (text, tags) => {
     if (text[i] === "[" && text[i + 1] !== "[") {
       const close = text.indexOf("]", i + 1);
       if (close !== -1 && close > i + 1) {
-        result += `<span style="color:#aaa">[</span><span style="color:#374151;font-weight:600">${esc(text.substring(i + 1, close))}</span><span style="color:#aaa">]</span>`;
+        result += `<span style="color:${dk ? "#666" : "#aaa"}">[</span><span style="color:${dk ? "#c0c0d0" : "#374151"};font-weight:600">${esc(text.substring(i + 1, close))}</span><span style="color:${dk ? "#666" : "#aaa"}">]</span>`;
         i = close + 1;
         continue;
       }
@@ -327,7 +330,7 @@ const textToEditHTML = (text, tags) => {
   return result;
 };
 
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, rows, isFocused, onCellFocus, isBlank }) {
+function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, rows, isFocused, onCellFocus, isBlank, darkMode }) {
   const editRef = useRef(null);
   const composingRef = useRef(false);
   const caretRef = useRef(0);
@@ -345,12 +348,12 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     const el = editRef.current;
     if (!el || composingRef.current) return;
     const isFocusedEl = document.activeElement === el;
-    const html = isFocusedEl ? textToEditHTML(cell.text, tags) : segmentsToPreviewHTML(segments, isBlank);
+    const html = isFocusedEl ? textToEditHTML(cell.text, tags, darkMode) : segmentsToPreviewHTML(segments, isBlank, darkMode);
     let offset = 0;
     if (isFocusedEl) offset = getCaretOffset(el);
     el.innerHTML = html || "";
     if (isFocusedEl) setCaretOffset(el, offset);
-  }, [cell.text, tags, isBlank, isFocused]);
+  }, [cell.text, tags, isBlank, isFocused, darkMode]);
 
   const handleInput = () => {
     const el = editRef.current;
@@ -417,11 +420,12 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     return () => document.removeEventListener("mousedown", h);
   }, [tagDrop]);
 
+  const dk = !!darkMode;
   const borderColor = isHeader ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
 
   return (
     <div style={{
-      background: isFocused ? "#eef4ff" : (isHeader ? "#fff" : (!cell.text ? "#fafafa" : "#fff")),
+      background: isFocused ? (dk ? "#1e2a45" : "#eef4ff") : (isHeader ? (dk ? "#1a2535" : "#fff") : (!cell.text ? (dk ? "#1e1f30" : "#fafafa") : (dk ? "#232436" : "#fff"))),
       padding: "0 10px", display: "flex", alignItems: "center", gap: 4,
       height: ROW_H, maxHeight: ROW_H, overflow: "hidden",
     }}>
@@ -438,11 +442,11 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
         style={{
           flex: 1, padding: "0 4px", outline: "none", minWidth: 0,
           fontSize: 12, lineHeight: `${ROW_H}px`, whiteSpace: "nowrap", overflow: "hidden",
-          cursor: "text",
+          cursor: "text", color: dk ? "#d0d0dc" : "inherit",
         }}
       />
       {tagDrop && filteredTags.length > 0 && (
-        <TagDropdown tags={tags} filter={tagDrop.filter} anchorEl={editRef.current} onSelect={selectTag} onClose={() => setTagDrop(null)} focusIdx={tagFocusIdx} />
+        <TagDropdown tags={tags} filter={tagDrop.filter} anchorEl={editRef.current} onSelect={selectTag} onClose={() => setTagDrop(null)} focusIdx={tagFocusIdx} darkMode={darkMode} />
       )}
     </div>
   );
@@ -578,15 +582,16 @@ function RenderSegments({ segments, fontSize = 12, isBlank = false }) {
     // 일반 텍스트: worksheet이고 vis 아니면 투명, vis면 파란색
     return (
       <span key={i} style={{
-        fontSize, color: (isBlank && !seg.vis) ? "transparent" : seg.vis ? "#2563eb" : "#1f2937",
+        fontSize, color: (isBlank && !seg.vis) ? "transparent" : "#1f2937",
       }}>{seg.value}</span>
     );
   });
 }
 
-function MItem({ onClick, children }) {
+function MItem({ onClick, children, darkMode }) {
   const [hover, setHover] = useState(false);
-  return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? "#f3f4f6" : "none", textAlign: "left", fontSize: 13, cursor: "pointer", borderRadius: 3, color: "#374151" }}>{children}</button>;
+  const dk = !!darkMode;
+  return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? (dk ? "#363850" : "#f3f4f6") : "none", textAlign: "left", fontSize: 13, cursor: "pointer", borderRadius: 3, color: dk ? "#d0d0dc" : "#374151" }}>{children}</button>;
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
@@ -683,6 +688,7 @@ export default function App() {
   const [settings, setSettingsState] = useState({ ...DEFAULT_SETTINGS }); // 전역 설정
 
   // UI 상태
+  const [darkMode, setDarkMode] = useState(false);
 const [settingsOpen, setSettingsOpen] = useState(false);
   const [addGroupOpen, setAddGroupOpen] = useState(false);
   const [newGrp, setNewGrp] = useState("");
@@ -725,6 +731,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     setSettingsState((prev) => {
       const next = { ...prev, ...s };
       window.electronAPI?.saveAppSettings({ editorSettings: next });
+      return next;
+    });
+  };
+
+  const toggleDarkMode = () => {
+    setDarkMode((v) => {
+      const next = !v;
+      window.electronAPI?.saveAppSettings({ darkMode: next });
       return next;
     });
   };
@@ -934,6 +948,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     window.electronAPI.onMenuSave(() => saveFile());
     window.electronAPI.getAppSettings().then((s) => {
       if (s?.editorSettings) setSettingsState({ ...DEFAULT_SETTINGS, ...s.editorSettings });
+      if (s?.darkMode !== undefined) setDarkMode(s.darkMode);
     });
     // 새로고침 시 현재 작업폴더 복원
     window.electronAPI.getWorkspace().then((dir) => {
@@ -1140,11 +1155,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
 
   // 폴더 미선택 시 시작 화면
   if (!workspace) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Pretendard',sans-serif", background: "#f0f2f5" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Pretendard',sans-serif", background: darkMode ? "#16172a" : "#f0f2f5" }}>
       <div style={{ textAlign: "center" }}>
         <img src={logoImg} style={{ height: 64, objectFit: "contain", marginBottom: 16 }} alt="잉그립" />
-        <div style={{ fontSize: 20, fontWeight: 800, color: "#00391e", marginBottom: 4 }}>백지테스트 메이커</div>
-        <div style={{ fontSize: 14, color: "#999", marginBottom: 20 }}>작업 폴더를 선택해서 시작하세요</div>
+        <div style={{ fontSize: 20, fontWeight: 800, color: darkMode ? "#7ecba1" : "#00391e", marginBottom: 4 }}>백지테스트 메이커</div>
+        <div style={{ fontSize: 14, color: darkMode ? "#888" : "#999", marginBottom: 20 }}>작업 폴더를 선택해서 시작하세요</div>
         <button onClick={() => window.electronAPI?.selectFolder()} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "#ec6619", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
           폴더 열기
         </button>
@@ -1161,6 +1176,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     await refreshFolder();
   };
 
+  const dk = darkMode;
   const GroupHeader = ({ g, count, collapsed, onToggle, onDelete }) => {
     const [hover, setHover] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -1184,16 +1200,16 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             onBlur={commitRename}
             onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setEditing(false); }}
             autoFocus onClick={(e) => e.stopPropagation()}
-            style={{ flex: 1, fontSize: 14, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: "#fff", borderRadius: 3, padding: "1px 6px", color: "#374151", minWidth: 0 }} />
+            style={{ flex: 1, fontSize: 14, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "1px 6px", color: dk ? "#e0e0e8" : "#374151", minWidth: 0 }} />
         ) : (
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#374151" }}>{g.name}</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>{g.name}</span>
         )}
-        {!editing && <span style={{ fontSize: 10, color: "#aaa", background: "#edeef0", borderRadius: 8, padding: "1px 6px", fontWeight: 600, marginRight: 4 }}>{count}</span>}
+        {!editing && <span style={{ fontSize: 10, color: dk ? "#888" : "#aaa", background: dk ? "#363748" : "#edeef0", borderRadius: 8, padding: "1px 6px", fontWeight: 600, marginRight: 4 }}>{count}</span>}
         {!editing && (hover || menuOpen) && <div style={{ position: "relative", flexShrink: 0 }}>
           <button onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#aaa", padding: "0 2px", lineHeight: 1 }}>⋯</button>
-          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120 }}>
-            <MItem onClick={startRename}>✎ 이름 변경</MItem>
-            <MItem onClick={() => { onDelete(); setMenuOpen(false); }}>🗑 그룹 삭제</MItem>
+          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120, border: dk ? "1px solid #404155" : "none" }}>
+            <MItem onClick={startRename} darkMode={dk}>✎ 이름 변경</MItem>
+            <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑 그룹 삭제</MItem>
           </div>}
         </div>}
       </div>
@@ -1235,15 +1251,15 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     };
     const toggleMenu = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
     const menuPopup = menuOpen && (
-        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: "#fff", borderRadius: 8, boxShadow: "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 130 }}>
-          <MItem onClick={() => { startEdit(); setMenuOpen(false); }}>✎ 이름 변경</MItem>
-          <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }}>📋 복제</MItem>
-          <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }}>🗑 삭제</MItem>
+        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 130, border: dk ? "1px solid #404155" : "none" }}>
+          <MItem onClick={() => { startEdit(); setMenuOpen(false); }} darkMode={dk}>✎ 이름 변경</MItem>
+          <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }} darkMode={dk}>📋 복제</MItem>
+          <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }} darkMode={dk}>🗑 삭제</MItem>
           {groups.length > 0 && <>
-            <div style={{ height: 1, background: "#eee", margin: "3px 0" }} />
-            <div style={{ padding: "3px 8px", fontSize: 11, color: "#aaa", fontWeight: 600 }}>그룹 이동</div>
-            {f.group && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }}>미분류</MItem>}
-            {groups.filter((g) => g.name !== f.group).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }}>{g.name}</MItem>)}
+            <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
+            <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>그룹 이동</div>
+            {f.group && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }} darkMode={dk}>미분류</MItem>}
+            {groups.filter((g) => g.name !== f.group).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }} darkMode={dk}>{g.name}</MItem>)}
           </>}
         </div>
     );
@@ -1257,7 +1273,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     if (active) return (
       <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{
         padding: "7px 8px 7px 12px", borderRadius: 6, marginBottom: 2,
-        background: "#fff7f0", borderLeft: "3px solid #ec6619",
+        background: dk ? "#3a2a1a" : "#fff7f0", borderLeft: "3px solid #ec6619",
         position: "relative",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1267,9 +1283,9 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               onBlur={commitEdit}
               onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
               autoFocus onClick={(e) => e.stopPropagation()}
-              style={{ flex: 1, fontSize: 13, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: "#fff", borderRadius: 3, padding: "2px 6px", color: "#1f2937", minWidth: 0 }} />
+              style={{ flex: 1, fontSize: 13, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#e0e0e8" : "#1f2937", minWidth: 0 }} />
           ) : (
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{unit?.title || displayName}</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#e0e0e8" : "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{unit?.title || displayName}</span>
           )}
           {!editing && dirty && <span style={{ color: "#f97316", fontSize: 11, flexShrink: 0 }}>●</span>}
           {dotsArea}
@@ -1292,9 +1308,9 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               onBlur={commitEdit}
               onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
               autoFocus onClick={(e) => e.stopPropagation()}
-              style={{ width: "100%", fontSize: 13, fontWeight: 600, border: "1px solid #f5a855", outline: "none", background: "#fff", borderRadius: 3, padding: "2px 6px", color: "#1f2937", minWidth: 0 }} />
+              style={{ width: "100%", fontSize: 13, fontWeight: 600, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#e0e0e8" : "#1f2937", minWidth: 0 }} />
           ) : (
-            <div style={{ fontSize: 13, fontWeight: 500, color: "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: dk ? "#9a9aae" : "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
           )}
         </div>
         {dotsArea}
@@ -1303,7 +1319,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", fontFamily, fontSize: 15, background: "#f0f2f5" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", fontFamily, fontSize: 15, background: dk ? "#16172a" : "#f0f2f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
         html,body{margin:0;padding:0;height:100%;overflow:hidden}
@@ -1318,44 +1334,46 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           .no-print{display:none!important}
         }
         input:focus,select:focus{border-color:#3b82f6!important}
-        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${dk ? "#404155" : "#d1d5db"};border-radius:3px}
+        ::-webkit-scrollbar-track{background:${dk ? "#1e1f30" : "transparent"}}
       `}</style>
 
       {/* ═══ 헤더 ═══ */}
-      <div className="no-print" style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 14px", height: 42, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <button onClick={() => setSidebarOpen((v) => !v)} style={{ border: "none", background: sidebarOpen ? "#f3f4f6" : "none", cursor: "pointer", fontSize: 17, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: sidebarOpen ? "#ec6619" : "#888", borderRadius: 5, lineHeight: 1 }} title="파일 목록">☰</button>
-        <span style={{ fontSize: 14, fontWeight: 800, color: "#00391e", letterSpacing: 1.5 }}>백지테스트</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#9a9a9b" }}>메이커</span>
+      <div className="no-print" style={{ background: dk ? "#1e1f30" : "#fff", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, padding: "0 14px", height: 42, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <button onClick={() => setSidebarOpen((v) => !v)} style={{ border: "none", background: sidebarOpen ? (dk ? "#2a2b3d" : "#f3f4f6") : "none", cursor: "pointer", fontSize: 17, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: sidebarOpen ? "#ec6619" : (dk ? "#888" : "#888"), borderRadius: 5, lineHeight: 1 }} title="파일 목록">☰</button>
+        <span style={{ fontSize: 14, fontWeight: 800, color: dk ? "#7ecba1" : "#00391e", letterSpacing: 1.5 }}>백지테스트</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: dk ? "#6b6b80" : "#9a9a9b" }}>메이커</span>
         <div style={{ flex: 1 }} />
-        <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4 }}>📁 폴더 변경</button>
-        <button onClick={() => setSettingsOpen(true)} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4 }}>⚙ 설정</button>
+        <button onClick={toggleDarkMode} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>{dk ? "☀️ 라이트" : "🌙 다크"}</button>
+        <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>📁 폴더 변경</button>
+        <button onClick={() => setSettingsOpen(true)} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>⚙ 설정</button>
       </div>
 
       {/* ═══ 메인 영역 ═══ */}
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* 세로 바 (사이드바 닫혀있을 때) */}
         {!sidebarOpen && (
-          <div onClick={() => setSidebarOpen(true)} style={{ width: 6, flexShrink: 0, background: "#e5e7eb", cursor: "pointer", transition: "background .15s, width .15s" }}
+          <div onClick={() => setSidebarOpen(true)} style={{ width: 6, flexShrink: 0, background: dk ? "#2e2f42" : "#e5e7eb", cursor: "pointer", transition: "background .15s, width .15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "#ec6619"; e.currentTarget.style.width = "8px"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "#e5e7eb"; e.currentTarget.style.width = "6px"; }} />
+            onMouseLeave={(e) => { e.currentTarget.style.background = dk ? "#2e2f42" : "#e5e7eb"; e.currentTarget.style.width = "6px"; }} />
         )}
         {/* 통합 사이드바 */}
-        <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: "#fff", borderRight: sidebarOpen ? "1px solid #e5e7eb" : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0 }}>
+        <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: dk ? "#1e1f30" : "#fff", borderRight: sidebarOpen ? `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}` : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0 }}>
          <div style={{ minWidth: 280, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: "1px solid #e5e7eb", flexShrink: 0 }}>
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#374151" }}>파일 목록</span>
+          <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, flexShrink: 0 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>파일 목록</span>
             <button onClick={toggleAllPrintSelected} style={{ border: "none", background: "none", fontSize: 10, color: "#888", cursor: "pointer", fontWeight: 600, padding: "2px 6px" }}>{printSelected.size === fileList.length && fileList.length > 0 ? "전체 해제" : "전체 선택"}</button>
             <button onClick={() => { setAddUnitOpen(true); setNewUnitName(""); setNewUnitGroup(""); }} style={{ padding: "4px 12px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", marginLeft: 4 }}>추가</button>
           </div>
           {addUnitOpen && (
-            <div style={{ padding: "10px 12px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#f0f0f0"}`, background: dk ? "#232436" : "#fafafa" }}>
               <input value={newUnitName} onChange={(e) => setNewUnitName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && newUnitName.trim()) { addNewUnit(newUnitGroup || null, newUnitName.trim()); setAddUnitOpen(false); } if (e.key === "Escape") setAddUnitOpen(false); }}
                 placeholder="단원 이름" autoFocus
-                style={{ width: "100%", padding: "5px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 6, boxSizing: "border-box" }} />
+                style={{ width: "100%", padding: "5px 8px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 6, boxSizing: "border-box", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <select value={newUnitGroup} onChange={(e) => setNewUnitGroup(e.target.value)}
-                  style={{ flex: 1, padding: "4px 6px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 12, outline: "none", color: newUnitGroup ? "#374151" : "#aaa", background: "#fff" }}>
+                  style={{ flex: 1, padding: "4px 6px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 12, outline: "none", color: newUnitGroup ? (dk ? "#d0d0dc" : "#374151") : "#aaa", background: dk ? "#2a2b3d" : "#fff" }}>
                   <option value="">미분류</option>
                   {groups.map((g) => <option key={g.name} value={g.name}>{g.name}</option>)}
                 </select>
@@ -1366,8 +1384,8 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             </div>
           )}
           {addGroupOpen && (
-            <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderBottom: "1px solid #f0f0f0" }}>
-              <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 4, fontSize: 13, outline: "none" }} />
+            <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#f0f0f0"}` }}>
+              <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "4px 8px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 13, outline: "none", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
               <button onClick={addGroup} style={{ padding: "4px 10px", border: "none", borderRadius: 4, background: "#ec6619", color: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>확인</button>
               <button onClick={() => { setAddGroupOpen(false); setNewGrp(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 13 }}>✕</button>
             </div>
@@ -1406,7 +1424,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             })}
             {ungroupedFiles.length > 0 && (
               <div style={{ marginBottom: 6 }}>
-                {groups.length > 0 && <div style={{ padding: "6px 8px", fontSize: 12, fontWeight: 700, color: "#bbb", borderRadius: 5, background: "#f5f6f7", marginBottom: 2 }}>미분류</div>}
+                {groups.length > 0 && <div style={{ padding: "6px 8px", fontSize: 12, fontWeight: 700, color: dk ? "#6b6b80" : "#bbb", borderRadius: 5, background: dk ? "#232436" : "#f5f6f7", marginBottom: 2 }}>미분류</div>}
                 {ungroupedFiles.map((f) => (
                   <div key={f.path} style={{ display: "flex", alignItems: "center", gap: 0 }}>
                     <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)}
@@ -1416,13 +1434,13 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                 ))}
               </div>
             )}
-            <button onClick={() => setAddGroupOpen(true)} style={{ width: "100%", padding: "6px 0", border: "1px dashed #d1d5db", borderRadius: 5, background: "none", fontSize: 12, color: "#aaa", cursor: "pointer", marginTop: 4 }}>새 그룹</button>
+            <button onClick={() => setAddGroupOpen(true)} style={{ width: "100%", padding: "6px 0", border: `1px dashed ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 5, background: "none", fontSize: 12, color: dk ? "#6b6b80" : "#aaa", cursor: "pointer", marginTop: 4 }}>새 그룹</button>
           </div>
           {/* 하단: 출력 모드 + 출력 버튼 */}
-          <div style={{ borderTop: "1px solid #e5e7eb", padding: "8px 12px", flexShrink: 0, background: "#fafafa" }}>
-            <div style={{ display: "flex", gap: 2, background: "#e8e8e8", borderRadius: 5, padding: 2, marginBottom: 8 }}>
+          <div style={{ borderTop: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, padding: "8px 12px", flexShrink: 0, background: dk ? "#232436" : "#fafafa" }}>
+            <div style={{ display: "flex", gap: 2, background: dk ? "#1a1b2e" : "#e8e8e8", borderRadius: 5, padding: 2, marginBottom: 8 }}>
               {[["answer", "A 답지"], ["blank", "W 시험지"], ["both", "A+W 둘 다"]].map(([mode, label]) => (
-                <button key={mode} onClick={() => setPrintMode(mode)} style={{ flex: 1, padding: "4px 0", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: printMode === mode ? "#fff" : "transparent", color: printMode === mode ? (mode === "answer" ? "#00391e" : mode === "blank" ? "#ec6619" : "#333") : "#999", boxShadow: printMode === mode ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
+                <button key={mode} onClick={() => setPrintMode(mode)} style={{ flex: 1, padding: "4px 0", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: printMode === mode ? (dk ? "#2a2b3d" : "#fff") : "transparent", color: printMode === mode ? (mode === "answer" ? (dk ? "#7ecba1" : "#00391e") : mode === "blank" ? "#ec6619" : dk ? "#d0d0dc" : "#333") : (dk ? "#6b6b80" : "#999"), boxShadow: printMode === mode ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
               ))}
             </div>
             <button onClick={openPrintModal} disabled={printing || printSelected.size === 0}
@@ -1435,23 +1453,23 @@ const [settingsOpen, setSettingsOpen] = useState(false);
 
         {/* 편집 메인 — 2열 통합 에디터 */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div ref={editorScrollRef} style={{ flex: 1, overflowY: "auto", background: "#fafafa" }}>
+            <div ref={editorScrollRef} style={{ flex: 1, overflowY: "auto", background: dk ? "#1a1b2e" : "#fafafa" }}>
               {unit ? (
                 <div>
                   {/* sticky 헤더 */}
                   <div style={{ position: "sticky", top: 0, zIndex: 10 }}>
                   {/* 1행: 단원명 + A/W 토글 + 미리보기 */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 42, background: "#fff", borderBottom: "1px solid #e5e7eb" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 42, background: dk ? "#1e1f30" : "#fff", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}` }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#ec6619", flexShrink: 0, letterSpacing: 0.5 }}>단원명</span>
                     <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="단원명을 입력하세요"
-                      style={{ flex: 1, fontSize: 16, fontWeight: 800, border: "none", outline: "none", background: "transparent", padding: "4px 8px", color: "#111", borderBottom: "2px solid #eee", borderRadius: 0 }}
+                      style={{ flex: 1, fontSize: 16, fontWeight: 800, border: "none", outline: "none", background: "transparent", padding: "4px 8px", color: dk ? "#e0e0e8" : "#111", borderBottom: `2px solid ${dk ? "#363748" : "#eee"}`, borderRadius: 0 }}
                       onFocus={(e) => { e.target.style.borderBottomColor = "#3b82f6"; }}
-                      onBlur={(e) => { e.target.style.borderBottomColor = "#eee"; }} />
-                    <div style={{ display: "flex", gap: 1, background: "#e0e0e0", borderRadius: 4, padding: 1, flexShrink: 0 }}>
-                      <button onClick={() => setPreviewMode("answer")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "answer" ? "#fff" : "transparent", color: previewMode === "answer" ? "#00391e" : "#999" }}>A</button>
-                      <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "worksheet" ? "#fff" : "transparent", color: previewMode === "worksheet" ? "#ec6619" : "#999" }}>W</button>
+                      onBlur={(e) => { e.target.style.borderBottomColor = dk ? "#363748" : "#eee"; }} />
+                    <div style={{ display: "flex", gap: 1, background: dk ? "#2a2b3d" : "#e0e0e0", borderRadius: 4, padding: 1, flexShrink: 0 }}>
+                      <button onClick={() => setPreviewMode("answer")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "answer" ? (dk ? "#363850" : "#fff") : "transparent", color: previewMode === "answer" ? (dk ? "#7ecba1" : "#00391e") : (dk ? "#6b6b80" : "#999") }}>A</button>
+                      <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "worksheet" ? (dk ? "#363850" : "#fff") : "transparent", color: previewMode === "worksheet" ? "#ec6619" : (dk ? "#6b6b80" : "#999") }}>W</button>
                     </div>
-                    <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", color: "#888", flexShrink: 0 }}>A4 미리보기</button>
+                    <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 10px", borderRadius: 4, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, background: dk ? "#2a2b3d" : "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", color: dk ? "#d0d0dc" : "#888", flexShrink: 0 }}>A4 미리보기</button>
                   </div>
                   </div>
                   {/* 문법 가이드 */}
@@ -1465,14 +1483,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                       ["일반 텍스트", "시험지에서 숨김"],
                       ["Alt+↑↓", "행 이동"],
                     ].map(([syntax, desc]) => (
-                      <span key={syntax} style={{ fontSize: 10, color: "#bbb", display: "flex", alignItems: "center", gap: 4 }}>
-                        <kbd style={{ padding: "0 5px", borderRadius: 3, background: "#eee", color: "#888", fontSize: 10, fontFamily: "inherit", fontWeight: 700, lineHeight: "18px" }}>{syntax}</kbd>
+                      <span key={syntax} style={{ fontSize: 10, color: dk ? "#6b6b80" : "#bbb", display: "flex", alignItems: "center", gap: 4 }}>
+                        <kbd style={{ padding: "0 5px", borderRadius: 3, background: dk ? "#2a2b3d" : "#eee", color: dk ? "#9a9aae" : "#888", fontSize: 10, fontFamily: "inherit", fontWeight: 700, lineHeight: "18px" }}>{syntax}</kbd>
                         {desc}
                       </span>
                     ))}
                   </div>
                   {/* 에디터 테이블 — A4 출력 표와 동일한 너비(684px) */}
-                  <div style={{ border: "2px solid #00391e", borderRadius: 4, overflow: "hidden", width: 684, margin: "0 auto" }}>
+                  <div style={{ border: `2px solid ${dk ? "#2e5e3e" : "#00391e"}`, borderRadius: 4, overflow: "hidden", width: 684, margin: "0 auto" }}>
                   {unit.rows.map((row, i) => {
                     const nextRow = unit.rows[i + 1];
                     const isLast = i >= unit.rows.length - 1;
@@ -1484,15 +1502,15 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                     const nxtRSegs = nextRow ? parseInlineMarkup(nextRow.r.text, settings.tags) : [];
                     const nxtLHdr = nxtLSegs.length === 1 && nxtLSegs[0]?.type === "header";
                     const nxtRHdr = nxtRSegs.length === 1 && nxtRSegs[0]?.type === "header";
-                    const lBtm = isLast ? "none" : ((lHdr && !nxtLHdr) || (!lHdr && nxtLHdr)) ? "2px solid #00391e" : "1px solid #e5e7eb";
-                    const rBtm = isLast ? "none" : ((rHdr && !nxtRHdr) || (!rHdr && nxtRHdr)) ? "2px solid #00391e" : "1px solid #e5e7eb";
+                    const lBtm = isLast ? "none" : ((lHdr && !nxtLHdr) || (!lHdr && nxtLHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`;
+                    const rBtm = isLast ? "none" : ((rHdr && !nxtRHdr) || (!rHdr && nxtRHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`;
                     return (
                       <div key={row.id} data-row data-rowid={row.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                         <div style={{ borderBottom: lBtm, overflow: "hidden" }}>
-                          <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "l"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("l"); }} isBlank={previewMode === "worksheet"} />
+                          <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "l"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("l"); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
                         </div>
-                        <div style={{ borderLeft: "2px solid #00391e", borderBottom: rBtm, overflow: "hidden" }}>
-                          <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "r"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("r"); }} isBlank={previewMode === "worksheet"} />
+                        <div style={{ borderLeft: `2px solid ${dk ? "#2e5e3e" : "#00391e"}`, borderBottom: rBtm, overflow: "hidden" }}>
+                          <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "r"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("r"); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
                         </div>
                       </div>
                     );
@@ -1501,7 +1519,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   </div>
                 </div>
               ) : (
-                <div style={{ textAlign: "center", padding: "80px 40px", color: "#ccc" }}>
+                <div style={{ textAlign: "center", padding: "80px 40px", color: dk ? "#4a4a5e" : "#ccc" }}>
                   <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
                   <div style={{ fontSize: 13 }}>☰ 메뉴에서 단원을 선택하세요</div>
                 </div>
@@ -1513,22 +1531,22 @@ const [settingsOpen, setSettingsOpen] = useState(false);
       {/* ═══ 출력 모달 (썸네일 미리보기) ═══ */}
       {printModalOpen && (
         <div tabIndex={-1} autoFocus onKeyDown={(e) => { if (e.key === "Escape") setPrintModalOpen(false); }} ref={(el) => el?.focus()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 100, outline: "none" }} onClick={() => setPrintModalOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, width: "90vw", maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: "1px solid #e5e7eb", flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#374151" }}>출력 미리보기</span>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "#1e1f30" : "#fff", borderRadius: 10, width: "90vw", maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)", border: dk ? "1px solid #2e2f42" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>출력 미리보기</span>
               <span style={{ fontSize: 12, color: "#999" }}>{printChecked.size}페이지</span>
               <div style={{ flex: 1 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <button onClick={() => setPrintZoom(z => Math.max(30, z - 10))} style={{ width: 24, height: 24, border: "1px solid #d1d5db", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#666", lineHeight: 1 }}>−</button>
+                <button onClick={() => setPrintZoom(z => Math.max(30, z - 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, background: dk ? "#2a2b3d" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#666", lineHeight: 1 }}>−</button>
                 <span style={{ fontSize: 11, color: "#999", fontWeight: 600, minWidth: 34, textAlign: "center" }}>{printZoom}%</span>
-                <button onClick={() => setPrintZoom(z => Math.min(200, z + 10))} style={{ width: 24, height: 24, border: "1px solid #d1d5db", borderRadius: 4, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#666", lineHeight: 1 }}>+</button>
+                <button onClick={() => setPrintZoom(z => Math.min(200, z + 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, background: dk ? "#2a2b3d" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#666", lineHeight: 1 }}>+</button>
               </div>
               <button onClick={executePrint} disabled={printing || printChecked.size === 0} style={{ padding: "5px 18px", borderRadius: 6, border: "none", background: (printing || printChecked.size === 0) ? "#ccc" : "#ec6619", color: "#fff", fontSize: 13, fontWeight: 700, cursor: (printing || printChecked.size === 0) ? "default" : "pointer", marginLeft: 8 }}>
                 {printing ? "처리 중..." : "🖨 출력"}
               </button>
               <button onClick={() => setPrintModalOpen(false)} style={{ border: "none", background: "none", fontSize: 18, cursor: "pointer", color: "#999", padding: "2px 6px", marginLeft: 4 }}>✕</button>
             </div>
-            <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: "#e8e8e8", padding: "16px" }}>
+            <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: dk ? "#16172a" : "#e8e8e8", padding: "16px" }}>
               <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} thumbW={Math.round(370 * printZoom / 100)} />
             </div>
           </div>
@@ -1594,11 +1612,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
       {/* Settings Modal */}
       {settingsOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setSettingsOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 10, padding: 20, width: 420, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)" }}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 700 }}>설정</h3>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "#1e1f30" : "#fff", borderRadius: 10, padding: 20, width: 420, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)", border: dk ? "1px solid #2e2f42" : "none" }}>
+            <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 700, color: dk ? "#e0e0e8" : "inherit" }}>설정</h3>
             {/* ── 태그 관리 ── */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 5 }}>태그 관리</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: dk ? "#d0d0dc" : "#374151", display: "block", marginBottom: 5 }}>태그 관리</label>
               <span style={{ fontSize: 12, color: "#999", display: "block", marginBottom: 5 }}>추가/삭제/색상 변경 가능</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {(settings.tags || []).map((t, idx) => (
@@ -1625,7 +1643,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                           }))
                         }));
                       }
-                    }} placeholder="태그 이름" style={{ flex: 1, padding: "4px 7px", border: "1px solid #e5e7eb", borderRadius: 4, fontSize: 14, outline: "none" }} />
+                    }} placeholder="태그 이름" style={{ flex: 1, padding: "4px 7px", border: `1px solid ${dk ? "#404155" : "#e5e7eb"}`, borderRadius: 4, fontSize: 14, outline: "none", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
                     <span style={{
                       display: "inline-block", padding: "2px 8px", borderRadius: 3,
                       background: t.c, color: t.tx, fontSize: 12, fontWeight: 700, minWidth: 30, textAlign: "center",
@@ -1640,7 +1658,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               <button onClick={() => {
                 const nTags = [...(settings.tags || []), { v: "새태그", c: "#6366F1", tx: "#fff" }];
                 setSettings({ tags: nTags });
-              }} style={{ marginTop: 5, padding: "4px 10px", borderRadius: 4, border: "1px dashed #ccc", background: "none", fontSize: 13, cursor: "pointer", color: "#888" }}>+ 태그 추가</button>
+              }} style={{ marginTop: 5, padding: "4px 10px", borderRadius: 4, border: `1px dashed ${dk ? "#404155" : "#ccc"}`, background: "none", fontSize: 13, cursor: "pointer", color: dk ? "#6b6b80" : "#888" }}>+ 태그 추가</button>
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
