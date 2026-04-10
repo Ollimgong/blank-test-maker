@@ -689,14 +689,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         {!editing && <span style={{ fontSize: 10, color: dk ? "#888" : "#aaa", background: dk ? "rgba(255,255,255,0.1)" : "#edeef0", borderRadius: 8, padding: "1px 6px", fontWeight: 600, marginRight: 4 }}>{count}</span>}
         {!editing && (hover || menuOpen) && <div style={{ position: "relative", flexShrink: 0 }}>
           <button onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#aaa", padding: "0 2px", lineHeight: 1 }}>⋯</button>
-          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120, border: dk ? "1px solid #404155" : "none" }}>
-            <MItem onClick={startRename} darkMode={dk}>✎ 이름 변경</MItem>
-            <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑 그룹 삭제</MItem>
+          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, background: dk ? "#1e293b" : "#fff", borderRadius: 10, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.5)" : "0 8px 30px rgba(0,0,0,.12)", padding: 6, zIndex: 100, minWidth: 160, border: dk ? "1px solid #334155" : "1px solid #f1f5f9" }}>
+            <MItem onClick={startRename} darkMode={dk}>✏️ 이름 변경</MItem>
+            <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑️ 그룹 삭제</MItem>
             {myWorkspaces.length > 0 && <>
-               <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
-               <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>공간 전송</div>
-               {currentWorkspace && <MItem onClick={() => { moveGroupToWorkspace(g.name, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
-               {myWorkspaces.filter(w => !currentWorkspace || w.id !== currentWorkspace.id).map(w => 
+               <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
+               <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이사 (전송)</div>
+               {g.workspace_id !== null && <MItem onClick={() => { moveGroupToWorkspace(g.name, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
+               {myWorkspaces.filter(w => w.id !== g.workspace_id).map(w => 
                   <MItem key={w.id} onClick={() => { moveGroupToWorkspace(g.name, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
                )}
             </>}
@@ -739,21 +739,21 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     };
     const toggleMenu = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
     const menuPopup = menuOpen && (
-        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 130, border: dk ? "1px solid #404155" : "none" }}>
-          <MItem onClick={() => { startEdit(); setMenuOpen(false); }} darkMode={dk}>✎ 이름 변경</MItem>
-          <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }} darkMode={dk}>📋 복제</MItem>
-          <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }} darkMode={dk}>🗑 삭제</MItem>
+        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, background: dk ? "#1e293b" : "#fff", borderRadius: 10, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.5)" : "0 8px 30px rgba(0,0,0,.12)", padding: 6, zIndex: 100, minWidth: 160, border: dk ? "1px solid #334155" : "1px solid #f1f5f9" }}>
+          <MItem onClick={() => { startEdit(); setMenuOpen(false); }} darkMode={dk}>✏️ 이름 변경</MItem>
+          <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }} darkMode={dk}>📑 복제</MItem>
+          <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }} darkMode={dk}>🗑️ 삭제</MItem>
           {groups.length > 0 && <>
-            <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
-            <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>그룹 이동</div>
-            {f.group && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }} darkMode={dk}>미분류</MItem>}
-            {groups.filter((g) => g.name !== f.group).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }} darkMode={dk}>{g.name}</MItem>)}
+            <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
+            <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>폴더 이동</div>
+            {f.group !== "미분류" && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }} darkMode={dk}>📁 미분류</MItem>}
+            {groups.filter((g) => g.name !== f.group && g.workspace_id === f.workspace_id).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }} darkMode={dk}>📁 {g.name}</MItem>)}
           </>}
           {myWorkspaces.length > 0 && <>
-             <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
-             <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>공간 전송</div>
-             {currentWorkspace && <MItem onClick={() => { moveFileToWorkspace(f.path, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
-             {myWorkspaces.filter(w => !currentWorkspace || w.id !== currentWorkspace.id).map(w => 
+             <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
+             <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이사 (전송)</div>
+             {f.workspace_id !== null && <MItem onClick={() => { moveFileToWorkspace(f.path, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
+             {myWorkspaces.filter(w => w.id !== f.workspace_id).map(w => 
                 <MItem key={w.id} onClick={() => { moveFileToWorkspace(f.path, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
              )}
           </>}
