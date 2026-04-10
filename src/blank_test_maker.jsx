@@ -551,8 +551,9 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   };
 
   // 파일 삭제
-  const deleteFile = async (id) => {
-    if (!confirm("삭제할까요?")) return;
+  const deleteFile = async (id, isWorkspaceItem) => {
+    const msg = isWorkspaceItem ? "워크스페이스에 속한 문서를 삭제하시겠습니까?\n(이 공간에 있는 모든 팀원에게서 완전히 삭제됩니다.)" : "문서를 삭제할까요?";
+    if (!confirm(msg)) return;
     const { error } = await supabase.from('documents').delete().eq('id', id);
     if (error) { showToast("삭제 실패"); return; }
     if (currentFile === id) { setUnit(null); setCurrentFile(null); setDirty(false); }
@@ -622,10 +623,17 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   };
 
   // 그룹 삭제 (안에 든 파일들의 그룹명을 '미분류'로)
-  const deleteGroup = async (groupPath) => {
-    if (!confirm("그룹을 삭제할까요? (파일은 미분류로 이동됩니다)")) return;
-    const { error } = await supabase.from('documents').update({ group_path: '미분류' }).eq('group_path', groupPath).eq('user_id', session.user.id);
-    if (error) { showToast("그룹 삭제 실패"); return; }
+  const deleteGroup = async (groupPath, isWorkspaceItem, wId) => {
+    const msg = isWorkspaceItem ? "워크스페이스의 폴더를 삭제할까요?\n(폴더 안의 모든 파일은 '미분류'로 이동되며, 모든 팀원에게 이 변경이 반영됩니다.)" : "폴더를 삭제할까요? (파일은 미분류로 이동됩니다)";
+    if (!confirm(msg)) return;
+    let q = supabase.from('documents').update({ group_path: '미분류' }).eq('group_path', groupPath);
+    if (isWorkspaceItem && wId) {
+      q = q.eq('workspace_id', wId);
+    } else {
+      q = q.is('workspace_id', null).eq('user_id', session.user.id);
+    }
+    const { error } = await q;
+    if (error) { showToast("폴더 삭제 실패"); return; }
     await refreshFolder();
   };
 
@@ -691,12 +699,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           <button onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#aaa", padding: "0 2px", lineHeight: 1 }}>⋯</button>
           {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, background: dk ? "#1e293b" : "#fff", borderRadius: 10, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.5)" : "0 8px 30px rgba(0,0,0,.12)", padding: 6, zIndex: 100, minWidth: 160, border: dk ? "1px solid #334155" : "1px solid #f1f5f9" }}>
             <MItem onClick={startRename} darkMode={dk}>✏️ 이름 변경</MItem>
-            <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑️ 그룹 삭제</MItem>
-            {myWorkspaces.length > 0 && <>
+            <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑️ 폴더 삭제</MItem>
+            {myWorkspaces.length > 0 && g.workspace_id === null && <>
                <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
-               <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이사 (전송)</div>
-               {g.workspace_id !== null && <MItem onClick={() => { moveGroupToWorkspace(g.name, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
-               {myWorkspaces.filter(w => w.id !== g.workspace_id).map(w => 
+               <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이동 (전송)</div>
+               {myWorkspaces.map(w => 
                   <MItem key={w.id} onClick={() => { moveGroupToWorkspace(g.name, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
                )}
             </>}
@@ -742,18 +749,17 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, background: dk ? "#1e293b" : "#fff", borderRadius: 10, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.5)" : "0 8px 30px rgba(0,0,0,.12)", padding: 6, zIndex: 100, minWidth: 160, border: dk ? "1px solid #334155" : "1px solid #f1f5f9" }}>
           <MItem onClick={() => { startEdit(); setMenuOpen(false); }} darkMode={dk}>✏️ 이름 변경</MItem>
           <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }} darkMode={dk}>📑 복제</MItem>
-          <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }} darkMode={dk}>🗑️ 삭제</MItem>
+          <MItem onClick={() => { deleteFile(f.path, f.workspace_id !== null); setMenuOpen(false); }} darkMode={dk}>🗑️ 삭제</MItem>
           {groups.length > 0 && <>
             <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
             <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>폴더 이동</div>
             {f.group !== "미분류" && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }} darkMode={dk}>📁 미분류</MItem>}
             {groups.filter((g) => g.name !== f.group && g.workspace_id === f.workspace_id).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }} darkMode={dk}>📁 {g.name}</MItem>)}
           </>}
-          {myWorkspaces.length > 0 && <>
+          {myWorkspaces.length > 0 && f.workspace_id === null && <>
              <div style={{ height: 1, background: dk ? "#334155" : "#f1f5f9", margin: "6px 0" }} />
-             <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이사 (전송)</div>
-             {f.workspace_id !== null && <MItem onClick={() => { moveFileToWorkspace(f.path, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
-             {myWorkspaces.filter(w => w.id !== f.workspace_id).map(w => 
+             <div style={{ padding: "4px 8px", fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", fontWeight: 700 }}>공간 이동 (전송)</div>
+             {myWorkspaces.map(w => 
                 <MItem key={w.id} onClick={() => { moveFileToWorkspace(f.path, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
              )}
           </>}
@@ -956,7 +962,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         
         await supabase.from('documents').insert([{
            user_id: session.user.id, workspace_id: currentWorkspace ? currentWorkspace.id : null,
-           group_path: "로컬 업로드",
+           group_path: "미분류",
            title: cData.title || title,
            content: cData
         }]);
@@ -1078,7 +1084,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                      const collapsed = collapsedGroups.has(`${wId || 'private'}_${g.name}`);
                      return (
                         <div key={g.name} style={{ marginBottom: 4 }}>
-                          <GroupHeader g={g} count={gFiles.length} collapsed={collapsed} onToggle={() => toggleGroup(`${wId || 'private'}_${g.name}`)} onDelete={() => deleteGroup(g.path)} />
+                          <GroupHeader g={g} count={gFiles.length} collapsed={collapsed} onToggle={() => toggleGroup(`${wId || 'private'}_${g.name}`)} onDelete={() => deleteGroup(g.path, wId !== null, wId)} />
                           {!collapsed && <div style={{ paddingLeft: 10 }}>
                             {gFiles.map((f) => (
                               <div key={f.path} style={{ display: "flex", alignItems: "center" }}>
