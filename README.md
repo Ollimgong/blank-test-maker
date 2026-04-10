@@ -1,71 +1,53 @@
 # 백지테스트 메이커 (Blank Test Maker)
 
-영어학원에서 사용하는 **서식 및 문법 내재화 백지테스트(빈칸 시험지)**를 직관적으로 편집하고 완벽하게 A4로 인쇄할 수 있는 웹 애플리케이션(SaaS)입니다.
+영어학원에서 사용하는 서식 및 문법 내재화 백지테스트(빈칸 시험지)를 직관적으로 편집하고 완벽하게 A4로 인쇄할 수 있는 웹 애플리케이션(SaaS)입니다. 순수 기반 클라우드 렌더링 스택(React + Vite + Supabase)으로 작동합니다.
 
-기존에 HWP나 MS Word 프로그램으로 수작업 제작하던 과정을, 워드처럼 자유롭게 열고 편집한 뒤 자동으로 클라우드에 일관되게 보관하기 위해 React와 Supabase 기반으로 개편/현대화되었습니다. 
-*(초기에는 Electron 기반으로 개발되었지만 현재 클라우드 친화적인 웹앱 모델로 이동하였습니다.)*
-
----
-
-## 🚀 프로젝트 구조 및 배포
-
-```
-├── src/
-│   ├── blank_test_maker.jsx   # 메인 앱 (초대형 모놀리식 React 컴포넌트)
-│   └── main.jsx               # Vite 엔진 및 라우터 엔트리포인트
-├── index.html                 # Vite HTML 엔트리
-├── vite.config.js
-├── README.md
-├── BTM_SPEC.md                # 필수 문법 명세서
-└── CLAUDE.md                  # 봇 개발용 규약서
-```
-
-- **실행 및 빌드**: Vite를 기반으로 로컬 개발(`npm run dev`)
-- **자동 배포**: `.github/workflows/deploy.yml` 액션을 통하여 코드가 `main`에 병합될 때마다 GitHub Pages 플랫폼으로 영구 자동 배포됩니다.
-- **백엔드/데이터 연동**: Supabase Database와 Auth를 연동하여 기기 간 환경 설정 동기화, 사용자별 권한, 및 단원별 묶음(워크스페이스)을 공유합니다.
+이 문서(`README.md`)는 프로젝트의 전체 아키텍처 및 내부 문서 체계의 시작점이 되는 최상위 목차입니다. 문서 내용이 중복되지 않도록 카테고리별로 분리하여 관리합니다.
 
 ---
 
-## ✨ 핵심 기능
+## 📚 문서 디렉토리 (Documentation Index)
 
-### 1. 실시간 렌더링 편집 규약 (BTM)
-- 문서 편집기(contentEditable)가 실시간으로 입력한 규칙을 해석하여 시각적인 UI 뱃지로 렌더링합니다. (문법 명세: [`BTM_SPEC.md`](BTM_SPEC.md))
-- **헤더/소제목**: `# 헤더`, `## 소제목` 활용
-- **태그 및 라벨 자동변환**: `@태그`(자동완성 및 컬러 동기화 가능), `[라벨]`(회색 박스) 지원
-- **선택적 보이기 제어**: `!` 기호를 줄 앞에 두면, 투명화 되어야 할 Worksheet에서도 강제로 글씨를 유지합니다. **(띄어쓰기를 생략한 `!@태그`나 `!# 헤더` 형태도 완벽 지원)**
+### 1. 개발 및 아키텍처 규칙
+- **[`AGENT_RULES.md`](AGENT_RULES.md)**: AI(Antigravity 등) 및 신규 개발자가 반드시 지켜야 하는 최상위 기술 제약/규칙 (예: Electron 금지, Vercel 규칙 등).
+- **[`ADR/`](ADR/)**: 중요한 아키텍처 의사결정 기록 보관소. 
+  - `ADR/001-saas-cloud-transition.md`: 데스크톱 앱에서 클라우드 SaaS로의 전환 결정문
+  - `ADR/002-btm-markup-spec.md`: BTM 마크업 분석 규칙과 Transparent Masking 전략
+  - `ADR/003-monolith-refactoring.md`: 컴포넌트 모듈화 분리 설계서
 
-### 2. A4 완벽 대응 인쇄 시스템
-- 용지 분할 없이 화면상에 표시된 `740x1046px`, `30줄` 고정 테이블 템플릿이 A4 한 장에 단 1px 오차 없이 전송되어 출력됩니다.
-- PDF 출력 메뉴 전송 시 UI의 네비게이션 요소들은 반응형으로 숨김 처리되고 완벽한 용지 레이아웃만 남습니다.
+### 2. 문법 명세 및 스펙
+- **[`BTM_SPEC.md`](BTM_SPEC.md)**: 시험지를 꾸미거나 블라인드 처리할 때 사용하는 마크업 언어(Blank Test Markup)의 공식 해설서.
 
-### 3. 클라우드 로그인 및 공유 (Supabase)
-- Supabase 로그인을 통해 원장/강사가 서로 학원 워크스페이스에 참여(초대 링크를 통하여 가입)할 수 있습니다.
-- 자신이 즐겨 쓰는 태그 목록(`users_settings`) 같은 모든 사용자 개인화 요소가 연동되어 다중 PC 작업에서도 무결성을 유지합니다.
-- 공유 받은 단원과 폴더를 실시간으로 탐색할 수 있습니다.
-
-### 4. 시험지/해설지(A/W) 다중 출력 시스템
-- **답지(ANSWER)**: 모든 정답 텍스트가 표시됩니다.
-- **시험지(WORKSHEET)**: 학생이 풀어야 할 텍스트만 남기고 일반 텍스트는 자동으로 숨김 투명화(Blank) 되어 출력됩니다.
-- 좌측 사이드바 체크박스를 통해 필요로 하는 수 십 개의 단원들을 모아 한 번의 인쇄 다이얼로그로 출력 보낼 수 있습니다.
+### 3. 로드맵 및 백로그
+- **[`ROADMAP.md`](ROADMAP.md)**: 현재 진행 중인 스프린트 목표(컴포넌트 분리 등) 및 묵혀둔 이슈(인쇄 성능 개선, 들여쓰기 시스템 부활 등) 추적기.
 
 ---
 
-## 🛠 실행 방법
+## 🚀 실행 및 배포 (Run & Deployment)
 
 ### 로컬 환경 세팅
-1. 저장소 클론 및 패키지 설치
+1. 패키지 설치
 ```bash
 npm install
 ```
-2. 루트 경로에 `.env.local` 파일 생성 후 Supabase 연결 키 기입 (없을 경우 로컬 전용으로 강제 전환됨)
+2. `.env.local` 세팅 (루트 폴더)
 ```
 VITE_SUPABASE_URL=여기에_주소
 VITE_SUPABASE_ANON_KEY=여기에_키
 ```
-3. 개발(dev)
+3. 로컬 서버 구동
 ```bash
 npm run dev
 ```
 
-### 상용 배포 방식
-- 본 리포지토리의 `main` 브랜치에 `git push`가 성공하면 Github Actions 서버가 Vite 빌드를 수행하고, Pages 서비스를 통하여 사용자 접근 URL이 약 1~2분 뒤 갱신됩니다. 별도의 Vercel 대시보드 셋업은 불필요합니다.
+### ☁️ 클라우드 배포 가이드 (Vercel)
+본 프로젝트는 **Vercel** 배포에 완벽하게 최적화(Zero-config)된 React/Vite SPA 구조입니다. 
+아래 절차를 통해 Vercel 인프라에 올릴 수 있습니다.
+
+**[Vercel 대시보드에서 연동하기 (권장)]**
+1. [Vercel](https://vercel.com/)에 회원가입 및 로그인합니다.
+2. 대시보드 우측 상단 `[Add New...] -> [Project]` 클릭.
+3. 이 GitHub 저장소(`blank-test-maker`)의 권한을 허용하고 Import 합니다.
+4. Framework Preset은 `Vite`로 자동 인식됩니다. (Build Command: `npm run build`)
+5. 하단의 `Environment Variables` 항목을 열쇠 모양 버튼과 함께 펼칩니다. 로컬 `.env.local` 에 있던 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`를 그대로 복사하여 추가합니다.
+6. `Deploy` 버튼을 클릭하면 불과 30초 내에 글로벌 CDN으로 프로덕션 배포가 완료되며 라이브 링크가 발급됩니다. 이후부터는 GitHub `main`에 코드가 푸시될 때마다 Vercel이 자동으로 가져가서 실시간 배포합니다!

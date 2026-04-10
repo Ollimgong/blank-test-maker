@@ -1,0 +1,35 @@
+11:/* ═══════ helpers ═══════ */
+13:// 태그 (tag): 색상 뱃지로 표시되는 분류/라벨 — 텍스트 안에 #태그이름 으로 삽입
+14:const DEFAULT_TAGS = [
+21:const NO_TAG = { v: "", label: "태그 없음", c: "#cbd5e1", tx: "#6b7280" };
+32:/* ═══════ 인라인 마크업 파서 ═══════ */
+33:// # HEADER (줄 시작) → 헤더, ## 소제목 (줄 시작) → 강조, ! 보임 (줄 시작) → 시험지 표시, @태그 → 컬러 뱃지, [라벨]
+110:/* ═══════ row helpers ═══════ */
+111:const TOTAL_ROWS = 30; // A4 fixed row count
+117:/* ═══════ Ghost helpers (들여쓰기) ═══════ */
+190:/* ═══════ default data ═══════ */
+203:const PASSIVE_ROWS = [
+231:const RELATIVE_ROWS = [
+261:const DEFAULT_SETTINGS = { tags: DEFAULT_TAGS };
+262:const DEFAULT_UNIT = { title: "새 단원", rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
+265:/* ═══════ TagDropdown — # 입력 시 태그 자동완성 ═══════ */
+266:function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx, darkMode }) {
+307:/* ═══════ contentEditable 커서 헬퍼 ═══════ */
+342:// 세그먼트를 HTML 문자열로 변환
+345:// 프리뷰용 (비포커스, 풀 렌더링 — 뱃지, 소제목 등)
+357:// 편집용 (포커스 중, 원본 텍스트 + 문법 하이라이팅)
+418:function EditorCell({ side, cell, upd, onUp, onDown, onInsert, onMouseDown, onMouseEnter, onMultiPaste, isSelected, first, last, tags, idx, rows, isFocused, onCellFocus, isBlank, darkMode }) {
+582:function EditorSideGroup({ side, label, color, rows, onCellChange, onMove, tags }) {
+606:/* ═══════ Preview ═══════ */
+607:const ROW_H = 27; // fixed row height (px) — notebook-ruled feel
+608:const CELL_STYLE = {
+613:const TEXT_CLIP = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" };
+615:function Preview({ unit, isBlank, fontFamily, tags, printId }) {
+701:/* ═══════ OverflowModal — 행 삽입 시 데이터 초과 경고창 ═══════ */
+702:function OverflowModal({ onConfirm, onCancel, darkMode }) {
+732:/* ═══════ RenderSegments — parseInlineMarkup 결과를 렌더링 ═══════ */
+733:function RenderSegments({ segments, fontSize = 12, isBlank = false }) {
+767:function MItem({ onClick, children, darkMode }) {
+773:/* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
+774:function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily, tags, thumbW }) {
+852:/* ═══════ MAIN APP ═══════ */

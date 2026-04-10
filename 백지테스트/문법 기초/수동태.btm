@@ -15,7 +15,7 @@
     {
       "id": "p47q88cp",
       "l": {
-        "text": "*능동: 주어가 동사를 직접 함*",
+        "text": "! 능동: 주어가 동사를 직접 함",
         "indent": 0
       },
       "r": {
@@ -26,7 +26,7 @@
     {
       "id": "sqgm6tkm",
       "l": {
-        "text": "*수동: 주어가 동사를 다른 행위자에 의해 당함*",
+        "text": "! 수동: 주어가 동사를 다른 행위자에 의해 당함",
         "indent": 0
       },
       "r": {
@@ -41,25 +41,25 @@
         "indent": 0
       },
       "r": {
-        "text": "*[영작] My friends love me.*",
+        "text": "! [영작] My friends love me.",
         "indent": 0
       }
     },
     {
       "id": "ybro2t5r",
       "l": {
-        "text": "*<능동태 -> 수동태 전환방법>*",
+        "text": "! <능동태 -> 수동태 전환방법>",
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] I am loved by my friends.*",
+        "text": "! [수동태] I am loved by my friends.",
         "indent": 0
       }
     },
     {
       "id": "07c66xa2",
       "l": {
-        "text": "#예문 She wrote a letter.",
+        "text": "@예문 She wrote a letter.",
         "indent": 0
       },
       "r": {
@@ -85,7 +85,7 @@
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] The dishes are washed by me.*",
+        "text": "! [수동태] The dishes are washed by me.",
         "indent": 0
       }
     },
@@ -107,7 +107,7 @@
         "indent": 0
       },
       "r": {
-        "text": "*[영작] He closed the window.*",
+        "text": "! [영작] He closed the window.",
         "indent": 0
       }
     },
@@ -118,7 +118,7 @@
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] The window was closed by him.*",
+        "text": "! [수동태] The window was closed by him.",
         "indent": 0
       }
     },
@@ -136,29 +136,29 @@
     {
       "id": "j6zof1z8",
       "l": {
-        "text": "*4) be동사를 수/시제에 맞게 쓴다.*",
+        "text": "! 4) be동사를 수/시제에 맞게 쓴다.",
         "indent": 0
       },
       "r": {
-        "text": "*[영작] Joy broke the cups.*",
+        "text": "! [영작] Joy broke the cups.",
         "indent": 0
       }
     },
     {
       "id": "xqou5vvu",
       "l": {
-        "text": "*=> A letter was*",
+        "text": "! => A letter was",
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] The cups were broken by Joy.*",
+        "text": "! [수동태] The cups were broken by Joy.",
         "indent": 0
       }
     },
     {
       "id": "cnytqy80",
       "l": {
-        "text": "*5) 동사를 p.p형태로 바꾼다.*",
+        "text": "! 5) 동사를 p.p형태로 바꾼다.",
         "indent": 0
       },
       "r": {
@@ -169,29 +169,29 @@
     {
       "id": "iv48ixrm",
       "l": {
-        "text": "*=> A letter was written*",
+        "text": "! => A letter was written",
         "indent": 0
       },
       "r": {
-        "text": "*[영작] She will hold a party.*",
+        "text": "! [영작] She will hold a party.",
         "indent": 0
       }
     },
     {
       "id": "ln5ayffa",
       "l": {
-        "text": "*6) by + 원래 주어를 목적격으로 쓴다.*",
+        "text": "! 6) by + 원래 주어를 목적격으로 쓴다.",
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] A party will be held by her.*",
+        "text": "! [수동태] A party will be held by her.",
         "indent": 0
       }
     },
     {
       "id": "bs9402v2",
       "l": {
-        "text": "*=> A letter was written by her.*",
+        "text": "! => A letter was written by her.",
         "indent": 0
       },
       "r": {
@@ -202,7 +202,7 @@
     {
       "id": "xk2ghv5p",
       "l": {
-        "text": "#예문 와이라노~~~ ㅠㅠ ㅋㅋㅋㅋ",
+        "text": "@예문 와이라노~~~ ㅠㅠ ㅋㅋㅋㅋ",
         "indent": 0
       },
       "r": {
@@ -235,29 +235,29 @@
     {
       "id": "1nmxqpei",
       "l": {
-        "text": "*#개념 행위자가 분명하지 않거나 중요하지 않을 때*",
+        "text": "! @개념 행위자가 분명하지 않거나 중요하지 않을 때",
         "indent": 0
       },
       "r": {
-        "text": "*[영작] People speak English in America.*",
+        "text": "! [영작] People speak English in America.",
         "indent": 0
       }
     },
     {
       "id": "0ayxuckb",
       "l": {
-        "text": "*by + 목적격은 생략할 수 있다*",
+        "text": "! by + 목적격은 생략할 수 있다",
         "indent": 0
       },
       "r": {
-        "text": "*[수동태] English is spoken in America.*",
+        "text": "! [수동태] English is spoken in America.",
         "indent": 0
       }
     },
     {
       "id": "ciu8o2u5",
       "l": {
-        "text": "*#예문 Someone planted the tree in 1995.*",
+        "text": "! @예문 Someone planted the tree in 1995.",
         "indent": 0
       },
       "r": {
@@ -268,7 +268,7 @@
     {
       "id": "ehepem2o",
       "l": {
-        "text": "*=> The tree was planted in 1995.*",
+        "text": "! => The tree was planted in 1995.",
         "indent": 0
       },
       "r": {

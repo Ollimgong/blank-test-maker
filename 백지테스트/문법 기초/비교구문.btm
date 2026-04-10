@@ -1,0 +1,335 @@
+{
+  "title": "비교구문",
+  "rows": [
+    {
+      "id": "n53ah52q",
+      "l": {
+        "text": "# SUMMARY",
+        "indent": 0
+      },
+      "r": {
+        "text": "# PRACTICE",
+        "indent": 0
+      }
+    },
+    {
+      "id": "4lfdg3cp",
+      "l": {
+        "text": "## 원급 / 비교급 / 최상급의 형태",
+        "indent": 0
+      },
+      "r": {
+        "text": "## 원급 / 비교급 / 최상급 영작 연습",
+        "indent": 0
+      }
+    },
+    {
+      "id": "7a90e7k6",
+      "l": {
+        "text": "[원급] 형용사 또는 부사의 원형",
+        "indent": 0
+      },
+      "r": {
+        "text": "[1] 나는 Joy만큼 키가 크다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "wzlpb495",
+      "l": {
+        "text": "[비교급] 원급 + er 또는 more + 원급",
+        "indent": 0
+      },
+      "r": {
+        "text": "I am as tall as Joy.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "uen9aqrj",
+      "l": {
+        "text": "[최상급] the + 원급 + est 또는 the most + 원급",
+        "indent": 0
+      },
+      "r": {
+        "text": "[2] 나는 Joy보다 키가 크다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "o4074x0y",
+      "l": {
+        "text": "",
+        "indent": 0
+      },
+      "r": {
+        "text": "I am taller than Joy.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "wvssifke",
+      "l": {
+        "text": "## 원급을 이용한 비교",
+        "indent": 0
+      },
+      "r": {
+        "text": "[3] 나는 우리 반에서 제일 키가 큰 학생이다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "vptf80d9",
+      "l": {
+        "text": "@형태 [긍정] as + 원급 + as",
+        "indent": 0
+      },
+      "r": {
+        "text": "I am the tallest student in my class.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "ykoaz52g",
+      "l": {
+        "text": "[부정] not as(so) + 원급 + as",
+        "indent": 1
+      },
+      "r": {
+        "text": "[4] 그녀는 기타를 잘 친다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "l3f4rjru",
+      "l": {
+        "text": "@해석 ~만큼 ~한 / ~만큼 ~하게",
+        "indent": 0
+      },
+      "r": {
+        "text": "She plays the guitar well.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "06fm4mjj",
+      "l": {
+        "text": "",
+        "indent": 0
+      },
+      "r": {
+        "text": "[5] 그녀는 기타를 그보다 잘 친다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "hh2yj62z",
+      "l": {
+        "text": "## 비교급을 이용한 비교구문",
+        "indent": 0
+      },
+      "r": {
+        "text": "She plays the guitar better than him.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "mq9lgjkp",
+      "l": {
+        "text": "[1] 비교급 + than",
+        "indent": 0
+      },
+      "r": {
+        "text": "[6] 하늘이 점점 더 어두워지고 있다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "jtw0fhkc",
+      "l": {
+        "text": "@해석 ~보다 더 ~한(~하게)",
+        "indent": 0
+      },
+      "r": {
+        "text": "The sky is growing darker and darker.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "hrlu8uv0",
+      "l": {
+        "text": "[2] less + 원급 + than",
+        "indent": 0
+      },
+      "r": {
+        "text": "[7] 한국은 미국보다 훨씬 더 작다.",
+        "indent": 0
+      }
+    },
+    {
+      "id": "qbzocir3",
+      "l": {
+        "text": "@해석 ~보다 덜 ~한(~하게)",
+        "indent": 0
+      },
+      "r": {
+        "text": "Korea is much smaller than the U.S.A.",
+        "indent": 1
+      }
+    },
+    {
+      "id": "9ejp2cxh",
+      "l": {
+        "text": "[3] 비교급 + and + 비교급",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "tcn3ynoj",
+      "l": {
+        "text": "@해석 점점 더 ~한(~하게)",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "2pte9236",
+      "l": {
+        "text": "@주의 much / even / still / far / a lot 이 비교급 앞에 오면",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "ej8t62sm",
+      "l": {
+        "text": "\"훨씬\" 이라는 뜻의 비교급 강조 표현이 된다",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "1h3bg7zg",
+      "l": {
+        "text": "",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "00q4qeup",
+      "l": {
+        "text": "## 최상급을 이용한 비교구문",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "nduqmfl4",
+      "l": {
+        "text": "[1] the + 최상급 + of / in",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "7okxx92l",
+      "l": {
+        "text": "@해석 ~중에서 가장 ~한(~하게)",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "lgfx3uwh",
+      "l": {
+        "text": "[2] one of the + 최상급 + 복수명사",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "kmtq8xbq",
+      "l": {
+        "text": "@해석 가장 ~한 것들 중 하나",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "3uoexoye",
+      "l": {
+        "text": "@주의 주어로 쓰일 경우 단수취급",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "6y91buaf",
+      "l": {
+        "text": "@예문 One of the most popular singers in Korea is Jenny.",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "4n5dxv2u",
+      "l": {
+        "text": "[-] 주어 : One of the most popular singers in Korea",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    },
+    {
+      "id": "ri2j5c8c",
+      "l": {
+        "text": "[-] 동사 : is",
+        "indent": 0
+      },
+      "r": {
+        "text": "",
+        "indent": 0
+      }
+    }
+  ]
+}
