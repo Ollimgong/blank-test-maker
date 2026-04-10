@@ -11,6 +11,7 @@ import logoImg from "./assets/logo.png";
 
 import { DEFAULT_TAGS, NO_TAG, TOTAL_ROWS, ROW_H, CELL_STYLE, TEXT_CLIP, PASSIVE_ROWS, RELATIVE_ROWS, DEFAULT_SETTINGS, DEFAULT_UNIT } from "./utils/constants.js";
 import { uid, emptyRow, hdrRow, padRows, mk } from "./utils/btmHelpers.js";
+import { parseInlineMarkup } from "./utils/btmParser.js";
 import { EditorCell, EditorSideGroup } from "./components/Editor/EditorCell.jsx";
 import Preview from "./components/Preview/Preview.jsx";
 import PrintThumbnails from "./components/Preview/PrintThumbnails.jsx";
@@ -128,7 +129,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
 
   const loadSettings = async () => {
     if (!session) return;
-    const { data } = await supabase.from('users_settings').select('settings').eq('id', session.user.id).single();
+    const { data } = await supabase.from('users_settings').select('settings').eq('id', session.user.id).maybeSingle();
     if (data?.settings) {
       if (data.settings.editorSettings) {
         setSettingsState(prev => ({ ...prev, ...data.settings.editorSettings }));
