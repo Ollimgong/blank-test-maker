@@ -1010,9 +1010,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         {/* 통합 사이드바 */}
         <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: dk ? "rgba(30,41,59,0.6)" : "#fff", backdropFilter: dk ? "blur(12px)" : "none", WebkitBackdropFilter: dk ? "blur(12px)" : "none", borderRight: sidebarOpen ? `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}` : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0, zIndex: 5 }}>
          <div style={{ minWidth: 280, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>워크스페이스</span>
-            <button onClick={() => setShowWorkspaceModal(true)} style={{ fontSize: 11, background: "#ec6619", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>+ 확장</button>
+          <div style={{ padding: "12px 14px 8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 14, fontWeight: 800, color: dk ? "#f8fafc" : "#334155" }}>워크스페이스</span>
+            <button onClick={() => setShowWorkspaceModal(true)} style={{ background: "transparent", color: dk ? "#94a3b8" : "#64748b", border: "none", cursor: "pointer", display: "flex", alignItems: "center", padding: 2 }} title="새 워크스페이스(학원) 개설">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+            </button>
           </div>
           <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, flexShrink: 0 }}>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>파일 목록</span>
@@ -1054,17 +1056,20 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                const wGroups = groups.filter(g => g.workspace_id === wId);
                
                let wFilesUnclassified = fileList.filter(f => f.group === "미분류" && f.workspace_id === wId);
-               let wSharedFiles = wId === null ? fileList.filter(f => f.isShared) : [];
                
-               if (wGroups.length === 0 && wFilesUnclassified.length === 0 && wSharedFiles.length === 0 && wId !== null) return null;
+               if (wGroups.length === 0 && wFilesUnclassified.length === 0 && wId !== null) return null;
 
                return (
                  <div key={wId || 'private'}>
                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.05)" : "#f1f5f9"}`, marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: dk ? "#94a3b8" : "#64748b" }}>{wName}</span>
-                      <div style={{ display: "flex", gap: 2 }}>
-                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddGroupOpen(true); }} style={{ border: "none", background: "none", cursor: "pointer", color: dk ? "#64748b" : "#94a3b8", fontSize: 16, lineHeight: 1 }} title="새 그룹">+</button>
-                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddUnitOpen(true); setNewUnitName(""); setNewUnitGroup(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#ec6619", fontSize: 18, lineHeight: 1, fontWeight: 800 }} title="새 문서">+</button>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: dk ? "#94a3b8" : "#64748b" }}>{wName}</span>
+                      <div style={{ display: "flex", gap: 4 }}>
+                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddGroupOpen(true); }} style={{ border: "none", background: "none", cursor: "pointer", color: dk ? "#64748b" : "#94a3b8", display: "flex", alignItems: "center", padding: 2 }} title="새 폴더">
+                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+                         </button>
+                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddUnitOpen(true); setNewUnitName(""); setNewUnitGroup(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#ec6619", display: "flex", alignItems: "center", padding: 2 }} title="새 문서">
+                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                         </button>
                       </div>
                    </div>
                    
@@ -1088,7 +1093,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                                 <button onClick={() => { setInlineAddGroup(null); setInlineAddName(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 12 }}>✕</button>
                               </div>
                             ) : (
-                              <button onClick={() => { setCurrentWorkspace(ws || null); setInlineAddGroup(g.name); setInlineAddName(""); }} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 11, color: "#ccc", cursor: "pointer", marginTop: 2, marginBottom: 4 }}>+ 추가</button>
+                              <button onClick={() => { setCurrentWorkspace(ws || null); setInlineAddGroup(g.name); setInlineAddName(""); }} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 11, color: "#ccc", cursor: "pointer", marginTop: 2, marginBottom: 4 }}>+ 문서 추가</button>
                             )}
                           </div>}
                         </div>
@@ -1104,19 +1109,6 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                        </div>
                      ))}
                    </div>
-                   
-                   {/* Shared Virtual Files */}
-                   {wSharedFiles.length > 0 && <div style={{ paddingLeft: 10, marginTop: 4 }}>
-                     {wSharedFiles.map(f => (
-                       <div key={`shared_${f.path}`} style={{ display: "flex", alignItems: "center" }}>
-                         <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)} style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, margin: "0 4px 0 0", cursor:"pointer" }} />
-                         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems:"center" }}>
-                           <FileItem f={f} />
-                           <span style={{ fontSize: 10, color: dk ? "#cbd5e1" : "#64748b", marginLeft: 4, background: dk ? "rgba(255,255,255,0.1)" : "#f1f5f9", padding: "1px 4px", borderRadius: 4, fontWeight: 700, flexShrink: 0, pointerEvents: "none" }}>[🏢{f.sharedTo}]</span>
-                         </div>
-                       </div>
-                     ))}
-                   </div>}
                  </div>
                )
             })}
