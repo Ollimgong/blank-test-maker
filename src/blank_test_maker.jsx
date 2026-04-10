@@ -1024,51 +1024,79 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               <button onClick={() => { setAddGroupOpen(false); setNewGrp(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 13 }}>✕</button>
             </div>
           )}
-          <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
-            {groups.map((g) => {
-              const gFiles = fileList.filter((f) => f.group === g.name);
-              const collapsed = collapsedGroups.has(g.name);
-              return (
-                <div key={g.name} style={{ marginBottom: 4 }}>
-                  <GroupHeader g={g} count={gFiles.length} collapsed={collapsed} onToggle={() => toggleGroup(g.name)} onDelete={() => deleteGroup(g.path)} />
-                  {!collapsed && <div style={{ paddingLeft: 10 }}>
-                    {gFiles.map((f) => (
-                      <div key={f.path} style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                        <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)}
-                          style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, cursor: "pointer", margin: "0 4px 0 0" }} />
-                        <div style={{ flex: 1, minWidth: 0 }}><FileItem f={f} /></div>
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px", display: "flex", flexDirection: "column", gap: 15 }}>
+            {[null, ...myWorkspaces].map((ws) => {
+               const wId = ws ? ws.id : null;
+               const wName = ws ? `🏢 ${ws.name}` : `🏠 내 전용 공간`;
+               const wGroups = groups.filter(g => g.workspace_id === wId);
+               
+               let wFilesUnclassified = fileList.filter(f => f.group === "미분류" && f.workspace_id === wId);
+               let wSharedFiles = wId === null ? fileList.filter(f => f.isShared) : [];
+               
+               if (wGroups.length === 0 && wFilesUnclassified.length === 0 && wSharedFiles.length === 0 && wId !== null) return null;
+
+               return (
+                 <div key={wId || 'private'}>
+                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 8px", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.05)" : "#f1f5f9"}`, marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: dk ? "#94a3b8" : "#64748b" }}>{wName}</span>
+                      <div style={{ display: "flex", gap: 2 }}>
+                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddGroupOpen(true); }} style={{ border: "none", background: "none", cursor: "pointer", color: dk ? "#64748b" : "#94a3b8", fontSize: 16, lineHeight: 1 }} title="새 그룹">+</button>
+                         <button onClick={() => { setCurrentWorkspace(ws || null); setAddUnitOpen(true); setNewUnitName(""); setNewUnitGroup(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#ec6619", fontSize: 18, lineHeight: 1, fontWeight: 800 }} title="새 문서">+</button>
                       </div>
-                    ))}
-                    {inlineAddGroup === g.name ? (
-                      <div style={{ display: "flex", gap: 3, marginTop: 2, marginBottom: 4 }}>
-                        <input value={inlineAddName} onChange={(e) => setInlineAddName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter" && inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } if (e.key === "Escape") { setInlineAddGroup(null); setInlineAddName(""); } }}
-                          placeholder="단원 이름" autoFocus
-                          style={{ flex: 1, padding: "3px 6px", border: "1px solid #cbd5e1", borderRadius: 3, fontSize: 12, outline: "none", minWidth: 0 }} />
-                        <button onClick={() => { if (inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } }}
-                          style={{ padding: "3px 8px", border: "none", borderRadius: 3, background: inlineAddName.trim() ? "#ec6619" : "#ccc", color: "#fff", fontSize: 11, cursor: inlineAddName.trim() ? "pointer" : "default", fontWeight: 600 }}>확인</button>
-                        <button onClick={() => { setInlineAddGroup(null); setInlineAddName(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 12 }}>✕</button>
-                      </div>
-                    ) : (
-                      <button onClick={() => { setInlineAddGroup(g.name); setInlineAddName(""); }} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 11, color: "#ccc", cursor: "pointer", marginTop: 2, marginBottom: 4 }}>+ 추가</button>
-                    )}
-                  </div>}
-                </div>
-              );
+                   </div>
+                   
+                   {wGroups.map((g) => {
+                     const gFiles = fileList.filter((f) => f.group === g.name && f.workspace_id === wId);
+                     const collapsed = collapsedGroups.has(`${wId || 'private'}_${g.name}`);
+                     return (
+                        <div key={g.name} style={{ marginBottom: 4 }}>
+                          <GroupHeader g={g} count={gFiles.length} collapsed={collapsed} onToggle={() => toggleGroup(`${wId || 'private'}_${g.name}`)} onDelete={() => deleteGroup(g.path)} />
+                          {!collapsed && <div style={{ paddingLeft: 10 }}>
+                            {gFiles.map((f) => (
+                              <div key={f.path} style={{ display: "flex", alignItems: "center" }}>
+                                <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)} style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, margin: "0 4px 0 0", cursor:"pointer" }} />
+                                <div style={{ flex: 1, minWidth: 0 }}><FileItem f={f} /></div>
+                              </div>
+                            ))}
+                            {inlineAddGroup === g.name && currentWorkspace?.id === wId ? (
+                              <div style={{ display: "flex", gap: 3, marginTop: 2, marginBottom: 4 }}>
+                                <input value={inlineAddName} onChange={(e) => setInlineAddName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } if (e.key === "Escape") { setInlineAddGroup(null); setInlineAddName(""); } }} placeholder="단원 이름" autoFocus style={{ flex: 1, padding: "3px 6px", border: "1px solid #cbd5e1", borderRadius: 3, fontSize: 12, outline: "none", minWidth: 0 }} />
+                                <button onClick={() => { if (inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } }} style={{ padding: "3px 8px", border: "none", borderRadius: 3, background: inlineAddName.trim() ? "#ec6619" : "#ccc", color: "#fff", fontSize: 11, cursor: inlineAddName.trim() ? "pointer" : "default" }}>확인</button>
+                                <button onClick={() => { setInlineAddGroup(null); setInlineAddName(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 12 }}>✕</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => { setCurrentWorkspace(ws || null); setInlineAddGroup(g.name); setInlineAddName(""); }} style={{ width: "100%", padding: 3, border: "1px dashed #ddd", borderRadius: 3, background: "none", fontSize: 11, color: "#ccc", cursor: "pointer", marginTop: 2, marginBottom: 4 }}>+ 추가</button>
+                            )}
+                          </div>}
+                        </div>
+                     )
+                   })}
+                   
+                   {/* Unclassified */}
+                   <div style={{ paddingLeft: 10 }}>
+                     {wFilesUnclassified.map(f => (
+                       <div key={f.path} style={{ display: "flex", alignItems: "center" }}>
+                         <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)} style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, margin: "0 4px 0 0", cursor:"pointer" }} />
+                         <div style={{ flex: 1, minWidth: 0 }}><FileItem f={f} /></div>
+                       </div>
+                     ))}
+                   </div>
+                   
+                   {/* Shared Virtual Files */}
+                   {wSharedFiles.length > 0 && <div style={{ paddingLeft: 10, marginTop: 4 }}>
+                     {wSharedFiles.map(f => (
+                       <div key={`shared_${f.path}`} style={{ display: "flex", alignItems: "center" }}>
+                         <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)} style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, margin: "0 4px 0 0", cursor:"pointer" }} />
+                         <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems:"center" }}>
+                           <FileItem f={f} />
+                           <span style={{ fontSize: 10, color: dk ? "#cbd5e1" : "#64748b", marginLeft: 4, background: dk ? "rgba(255,255,255,0.1)" : "#f1f5f9", padding: "1px 4px", borderRadius: 4, fontWeight: 700, flexShrink: 0, pointerEvents: "none" }}>[🏢{f.sharedTo}]</span>
+                         </div>
+                       </div>
+                     ))}
+                   </div>}
+                 </div>
+               )
             })}
-            {ungroupedFiles.length > 0 && (
-              <div style={{ marginBottom: 6 }}>
-                {groups.length > 0 && <div style={{ padding: "6px 8px", fontSize: 12, fontWeight: 700, color: dk ? "#94a3b8" : "#bbb", borderRadius: 5, background: dk ? "rgba(15,23,42,0.6)" : "#f5f6f7", marginBottom: 2 }}>미분류</div>}
-                {ungroupedFiles.map((f) => (
-                  <div key={f.path} style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                    <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)}
-                      style={{ accentColor: "#ec6619", width: 14, height: 14, flexShrink: 0, cursor: "pointer", margin: "0 4px 0 0" }} />
-                    <div style={{ flex: 1, minWidth: 0 }}><FileItem f={f} /></div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={() => setAddGroupOpen(true)} style={{ width: "100%", padding: "6px 0", border: `1px dashed ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 5, background: "none", fontSize: 12, color: dk ? "#94a3b8" : "#aaa", cursor: "pointer", marginTop: 4 }}>새 그룹</button>
           </div>
           {/* 하단: 출력 모드 + 출력 버튼 */}
           <div style={{ borderTop: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, padding: "8px 12px", flexShrink: 0, background: dk ? "rgba(15,23,42,0.6)" : "#fafafa" }}>
