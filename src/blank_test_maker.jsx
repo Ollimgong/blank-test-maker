@@ -555,6 +555,25 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     await refreshFolder();
   };
 
+  // 워크스페이스 간 파일 이동
+  const moveFileToWorkspace = async (id, targetWorkspaceId) => {
+    const { error } = await supabase.from('documents').update({ workspace_id: targetWorkspaceId || null, group_path: '미분류' }).eq('id', id);
+    if (error) return showToast(`전송 실패: ${error.message}`, "error");
+    showToast("성공적으로 다른 공간으로 전송되었습니다.", "info");
+    if (unit && unit.path === id) setUnit(null);
+    await refreshFolder();
+  };
+
+  // 워크스페이스 간 그룹 이동
+  const moveGroupToWorkspace = async (groupName, targetWorkspaceId) => {
+    const q = supabase.from('documents').update({ workspace_id: targetWorkspaceId || null }).eq('group_path', groupName);
+    const { error } = await (currentWorkspace ? q.eq('workspace_id', currentWorkspace.id) : q.is('workspace_id', null).eq('user_id', session?.user?.id));
+    if (error) return showToast(`그룹 전송 실패: ${error.message}`, "error");
+    showToast("그룹 전체가 다른 공간으로 전송되었습니다.", "info");
+    if (unit && unit.group_path === groupName) setUnit(null);
+    await refreshFolder();
+  };
+
   // 파일명 연동 변경
   const renameActiveFile = async (newTitle) => {
     if (!currentFile || !newTitle.trim()) return;
@@ -641,6 +660,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120, border: dk ? "1px solid #404155" : "none" }}>
             <MItem onClick={startRename} darkMode={dk}>✎ 이름 변경</MItem>
             <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑 그룹 삭제</MItem>
+            {myWorkspaces.length > 0 && <>
+               <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
+               <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>공간 전송</div>
+               {currentWorkspace && <MItem onClick={() => { moveGroupToWorkspace(g.name, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
+               {myWorkspaces.filter(w => !currentWorkspace || w.id !== currentWorkspace.id).map(w => 
+                  <MItem key={w.id} onClick={() => { moveGroupToWorkspace(g.name, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
+               )}
+            </>}
           </div>}
         </div>}
       </div>
@@ -689,6 +716,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>그룹 이동</div>
             {f.group && <MItem onClick={() => { moveFileToGroup(f.path, null); setMenuOpen(false); }} darkMode={dk}>미분류</MItem>}
             {groups.filter((g) => g.name !== f.group).map((g) => <MItem key={g.name} onClick={() => { moveFileToGroup(f.path, g.name); setMenuOpen(false); }} darkMode={dk}>{g.name}</MItem>)}
+          </>}
+          {myWorkspaces.length > 0 && <>
+             <div style={{ height: 1, background: dk ? "#404155" : "#eee", margin: "3px 0" }} />
+             <div style={{ padding: "3px 8px", fontSize: 11, color: dk ? "#888" : "#aaa", fontWeight: 600 }}>공간 전송</div>
+             {currentWorkspace && <MItem onClick={() => { moveFileToWorkspace(f.path, null); setMenuOpen(false); }} darkMode={dk}>🏠 내 전용 공간</MItem>}
+             {myWorkspaces.filter(w => !currentWorkspace || w.id !== currentWorkspace.id).map(w => 
+                <MItem key={w.id} onClick={() => { moveFileToWorkspace(f.path, w.id); setMenuOpen(false); }} darkMode={dk}>🏢 {w.name}</MItem>
+             )}
           </>}
         </div>
     );
