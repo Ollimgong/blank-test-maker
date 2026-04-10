@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
 import logoImg from "./assets/logo.png";
 
 /* ═══════ helpers ═══════ */
@@ -12,7 +18,7 @@ const DEFAULT_TAGS = [
   { v: "주의", c: "#dc2626", tx: "#fff" },
   { v: "예시", c: "#7e7e7f", tx: "#fff" },
 ];
-const NO_TAG = { v: "", label: "태그 없음", c: "#d1d5db", tx: "#6b7280" };
+const NO_TAG = { v: "", label: "태그 없음", c: "#cbd5e1", tx: "#6b7280" };
 const tagColor = (v, tags) => {
   if (!v) return NO_TAG;
   return (tags || DEFAULT_TAGS).find((t) => t.v === v) || NO_TAG;
@@ -27,18 +33,23 @@ const emptyRow = () => ({
 // # HEADER (줄 시작) → 헤더, ## 소제목 (줄 시작) → 강조, ! 보임 (줄 시작) → 시험지 표시, @태그 → 컬러 뱃지, [라벨]
 const parseInlineMarkup = (text, tags) => {
   if (!text) return [];
-  // ## 소제목 (줄 시작이 ## 이면 소제목)
-  if (text.startsWith("## ")) return [{ type: "heading", value: text.substring(3) }];
-  // # 헤더 (줄 시작이 # 이면 헤더)
-  if (text.startsWith("# ")) return [{ type: "header", value: text.substring(2) }];
-  // ! 보임 (줄 시작이 ! 이면 전체 줄 시험지 표시)
-  if (text.startsWith("! ")) {
-    const innerSegs = parseInlineMarkup_inner(text.substring(2), tags);
-    innerSegs.forEach((s) => { s.vis = true; });
-    return innerSegs;
+  let isVis = false;
+  let workText = text;
+  
+  // ! 보임 
+  if (workText.startsWith("!")) {
+    isVis = true;
+    workText = workText[1] === " " ? workText.substring(2) : workText.substring(1);
   }
 
-  return parseInlineMarkup_inner(text, tags);
+  // ## 소제목 (줄 시작이 ## 이면 소제목)
+  if (workText.startsWith("## ")) return [{ type: "heading", value: workText.substring(3), vis: isVis }];
+  // # 헤더 (줄 시작이 # 이면 헤더)
+  if (workText.startsWith("# ")) return [{ type: "header", value: workText.substring(2), vis: isVis }];
+
+  const innerSegs = parseInlineMarkup_inner(workText, tags);
+  if (isVis) innerSegs.forEach((s) => { s.vis = true; });
+  return innerSegs;
 };
 
 const parseInlineMarkup_inner = (text, tags) => {
@@ -101,6 +112,79 @@ const TOTAL_ROWS = 30; // A4 fixed row count
 const padRows = (rows) => {
   if (rows.length >= TOTAL_ROWS) return rows.slice(0, TOTAL_ROWS);
   return [...rows, ...Array.from({ length: TOTAL_ROWS - rows.length }, emptyRow)];
+};
+
+/* ═══════ Ghost helpers (들여쓰기) ═══════ */
+const getPrefixBlocks = (text, tags) => {
+  if (!text) return [];
+  const segs = parseInlineMarkup(text, tags).map(s => ({...s}));
+  const blocks = [];
+  
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    if (seg.type === "header" || seg.type === "heading") break;
+    if (seg.type === "tag" || seg.type === "label") {
+      let block = [seg];
+      if (i + 1 < segs.length && segs[i+1].type === "text") {
+        const spaceMatch = segs[i+1].value.match(/^([\s\u00A0]+)/);
+        if (spaceMatch) {
+           block.push({ type: "text", value: spaceMatch[1], vis: segs[i+1].vis });
+           segs[i+1].value = segs[i+1].value.substring(spaceMatch[1].length);
+           if (!segs[i+1].value) i++; // skip the empty segment next iteration
+        }
+      }
+      blocks.push(block);
+    } else if (seg.type === "text") {
+      const markerMatch = seg.value.match(/^([\s\u00A0]*(?:\d+[\.\)]?|\(\d+\)|=>|-|•|※)[\s\u00A0]+)/);
+      if (markerMatch && markerMatch[1]) {
+         blocks.push([{ type: "text", value: markerMatch[1], vis: seg.vis }]);
+         segs[i].value = segs[i].value.substring(markerMatch[1].length);
+         if (segs[i].value) i--; // re-process the remaining text in the same segment
+      } else {
+         break;
+      }
+    } else {
+       break;
+    }
+  }
+  return blocks;
+};
+
+const getGhostSegments = (rows, idx, side, tags) => {
+  const currentIndent = rows[idx]?.[side]?.indent;
+  if (!currentIndent) return [];
+
+  let parentIdx = -1;
+  for (let p = idx - 1; p >= 0; p--) {
+    if ((rows[p]?.[side]?.indent || 0) < currentIndent) {
+      parentIdx = p;
+      break;
+    }
+  }
+
+  if (parentIdx === -1) {
+     return Array.from({ length: currentIndent }, () => ({ type: "text", value: "        " }));
+  }
+
+  const pIndent = rows[parentIdx][side].indent || 0;
+  let pGhosts = [];
+  if (pIndent > 0) {
+     pGhosts = getGhostSegments(rows, parentIdx, side, tags);
+  }
+  
+  const diff = currentIndent - pIndent;
+  const pBlocks = getPrefixBlocks(rows[parentIdx][side].text, tags);
+  
+  let extraGhosts = [];
+  for (let i = 0; i < diff; i++) {
+     if (i < pBlocks.length) {
+       extraGhosts = extraGhosts.concat(pBlocks[i]);
+     } else {
+       extraGhosts.push({ type: "text", value: "        " });
+     }
+  }
+  
+  return pGhosts.concat(extraGhosts);
 };
 
 /* ═══════ default data ═══════ */
@@ -196,7 +280,7 @@ function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx, dark
   return createPortal(
     <div data-tag-dropdown style={{
       position: "fixed", ...getPos(), zIndex: 1000,
-      background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 32px rgba(0,0,0,.45)" : "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
+      background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 32px rgba(0,0,0,.45)" : "0 8px 32px rgba(0,0,0,.18), 0 1px 3px rgba(0,0,0,.1)",
       padding: "6px 4px", minWidth: 160, border: dk ? "1px solid #404155" : "none",
     }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: dk ? "#888" : "#aaa", padding: "2px 8px 4px", letterSpacing: 0.5 }}>태그 삽입</div>
@@ -206,7 +290,7 @@ function TagDropdown({ tags, filter, anchorEl, onSelect, onClose, focusIdx, dark
           style={{
             display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 8px",
             border: "none", borderRadius: 4, cursor: "pointer", fontSize: 12, fontWeight: 600,
-            background: i === focusIdx ? (dk ? "#363850" : "#f0f4ff") : "transparent", color: dk ? "#d0d0dc" : "#374151",
+            background: i === focusIdx ? (dk ? "#334155" : "#f0f4ff") : "transparent", color: dk ? "#f8fafc" : "#334155",
             textAlign: "left",
           }}>
           <span style={{
@@ -264,9 +348,9 @@ const segmentsToPreviewHTML = (segments, isBlank, darkMode) => {
   return segments.map((seg) => {
     if (seg.type === "header") return `<span style="font-weight:800;color:${dk ? "#7ecba1" : "#00391e"};letter-spacing:2px">${esc(seg.value)}</span>`;
     if (seg.type === "tag") return `<span style="display:inline-block;padding:1px 7px;border-radius:3px;background:${seg.c};color:${seg.tx};font-size:9.5px;font-weight:700;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
-    if (seg.type === "heading") return `<span style="font-weight:800;color:${dk ? "#e0e0e8" : "inherit"};text-decoration:underline;text-underline-offset:3px;text-decoration-color:${dk ? "#555" : "#aaa"}">${esc(seg.value)}</span>`;
-    if (seg.type === "label") return `<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${dk ? "#363748" : "#f3f4f6"};color:${dk ? "#c0c0d0" : "#374151"};font-size:11px;font-weight:600;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
-    return `<span style="color:${(isBlank && !seg.vis) ? "transparent" : dk ? "#d0d0dc" : "#1f2937"}">${esc(seg.value)}</span>`;
+    if (seg.type === "heading") return `<span style="font-weight:800;color:${dk ? "#ffffff" : "inherit"};text-decoration:underline;text-underline-offset:3px;text-decoration-color:${dk ? "#555" : "#aaa"}">${esc(seg.value)}</span>`;
+    if (seg.type === "label") return `<span style="display:inline-block;padding:1px 5px;border-radius:3px;background:${dk ? "rgba(255,255,255,0.1)" : "#f3f4f6"};color:${dk ? "#c0c0d0" : "#334155"};font-size:11px;font-weight:600;line-height:16px;margin-right:4px">${esc(seg.value)}</span>`;
+    return `<span style="color:${(isBlank && !seg.vis) ? "transparent" : dk ? "#f8fafc" : "#1f2937"}">${esc(seg.value)}</span>`;
   }).join("");
 };
 
@@ -278,25 +362,26 @@ const textToEditHTML = (text, tags, darkMode) => {
   tagNames.sort((a, b) => b.length - a.length);
   let result = "";
   let i = 0;
+
+  // 1. ! 보임 마커
+  if (text.startsWith("!")) {
+    const hasSpace = text[1] === " ";
+    result += `<span style="color:${dk ? "#666" : "#aaa"}">!${hasSpace ? " " : ""}</span>`;
+    i = hasSpace ? 2 : 1;
+  }
+
+  // 2. 단독 처리 마커 (소제목, 헤더)
+  if (text.startsWith("## ", i)) {
+    result += `<span style="color:${dk ? "#666" : "#aaa"}">## </span><span style="font-weight:800;text-decoration:underline;color:${dk ? "#ffffff" : "inherit"}">${esc(text.substring(i + 3))}</span>`;
+    return result;
+  }
+  if (text.startsWith("# ", i)) {
+    result += `<span style="color:${dk ? "#7ecba1" : "#00391e"};font-weight:800">${esc(text.substring(i))}</span>`;
+    return result;
+  }
+
+  // 3. 인라인 컨텐츠 루프
   while (i < text.length) {
-    // ## 소제목 하이라이팅 (줄 시작)
-    if (i === 0 && text.startsWith("## ")) {
-      result += `<span style="color:${dk ? "#666" : "#aaa"}">## </span><span style="font-weight:800;text-decoration:underline;color:${dk ? "#e0e0e8" : "inherit"}">${esc(text.substring(3))}</span>`;
-      i = text.length;
-      continue;
-    }
-    // # 헤더 하이라이팅 (줄 시작)
-    if (i === 0 && text.startsWith("# ")) {
-      result += `<span style="color:${dk ? "#7ecba1" : "#00391e"};font-weight:800">${esc(text)}</span>`;
-      i = text.length;
-      continue;
-    }
-    // ! 보임 하이라이팅 (줄 시작)
-    if (i === 0 && text.startsWith("! ")) {
-      result += `<span style="color:${dk ? "#666" : "#aaa"}">! </span><span style="color:${dk ? "#d0d0dc" : "#1f2937"}">${esc(text.substring(2))}</span>`;
-      i = text.length;
-      continue;
-    }
     // @태그 하이라이팅
     if (text[i] === "@") {
       let matched = false;
@@ -319,7 +404,7 @@ const textToEditHTML = (text, tags, darkMode) => {
     if (text[i] === "[" && text[i + 1] !== "[") {
       const close = text.indexOf("]", i + 1);
       if (close !== -1 && close > i + 1) {
-        result += `<span style="color:${dk ? "#666" : "#aaa"}">[</span><span style="color:${dk ? "#c0c0d0" : "#374151"};font-weight:600">${esc(text.substring(i + 1, close))}</span><span style="color:${dk ? "#666" : "#aaa"}">]</span>`;
+        result += `<span style="color:${dk ? "#666" : "#aaa"}">[</span><span style="color:${dk ? "#c0c0d0" : "#334155"};font-weight:600">${esc(text.substring(i + 1, close))}</span><span style="color:${dk ? "#666" : "#aaa"}">]</span>`;
         i = close + 1;
         continue;
       }
@@ -330,7 +415,7 @@ const textToEditHTML = (text, tags, darkMode) => {
   return result;
 };
 
-function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, rows, isFocused, onCellFocus, isBlank, darkMode }) {
+function EditorCell({ side, cell, upd, onUp, onDown, onInsert, onMouseDown, onMouseEnter, onMultiPaste, isSelected, first, last, tags, idx, rows, isFocused, onCellFocus, isBlank, darkMode }) {
   const editRef = useRef(null);
   const composingRef = useRef(false);
   const caretRef = useRef(0);
@@ -358,7 +443,7 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
   const handleInput = () => {
     const el = editRef.current;
     if (!el || composingRef.current) return;
-    const newText = el.innerText.replace(/\n/g, "");
+    const newText = (el.textContent || "").replace(/\n/g, "");
     caretRef.current = getCaretOffset(el);
     upd("text", newText);
     // # 트리거 감지
@@ -388,6 +473,26 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
   };
 
   const handleKeyDown = (e) => {
+    // 탭 키는 최우선 가로채기 (들여쓰기)
+    if (e.key === "Tab" || e.keyCode === 9 || e.which === 9) {
+      if (!tagDrop || filteredTags.length === 0) {
+        e.preventDefault();
+        const curIndent = cell.indent || 0;
+        if (e.shiftKey) {
+          upd("indent", Math.max(0, curIndent - 1));
+        } else {
+          upd("indent", Math.min(2, curIndent + 1));
+        }
+        return;
+      }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (onInsert) onInsert(e.shiftKey); // true면 위, false면 아래 삽입
+      return;
+    }
+
     // 한글 조합 중에는 키 이벤트 무시 (Enter로 글자 중복 방지)
     if (composingRef.current) return;
     if (tagDrop && filteredTags.length > 0) {
@@ -399,6 +504,7 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
     }
     if (e.altKey && e.key === "ArrowUp") { e.preventDefault(); onUp(); return; }
     if (e.altKey && e.key === "ArrowDown") { e.preventDefault(); onDown(); return; }
+
     const colIdx = side === "r" ? 1 : 0;
     const goNext = () => { const next = e.target.closest("[data-row]")?.nextElementSibling?.querySelectorAll("[contenteditable]")[colIdx]; if (next) next.focus(); };
     const goPrev = () => { const prev = e.target.closest("[data-row]")?.previousElementSibling?.querySelectorAll("[contenteditable]")[colIdx]; if (prev) prev.focus(); };
@@ -408,8 +514,13 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
 
   const handlePaste = (e) => {
     e.preventDefault();
-    const text = e.clipboardData.getData("text/plain").replace(/\n/g, " ");
-    document.execCommand("insertText", false, text);
+    const text = e.clipboardData.getData("text/plain");
+    if (text.includes("\t") || text.includes("\n")) {
+      if (onMultiPaste) onMultiPaste(text);
+      return;
+    }
+    const cleanText = text.replace(/\n/g, " ");
+    document.execCommand("insertText", false, cleanText);
   };
 
   // 드롭다운 외부 클릭 닫기
@@ -421,14 +532,30 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
   }, [tagDrop]);
 
   const dk = !!darkMode;
-  const borderColor = isHeader ? "#00391e" : isFocused ? "#3b82f6" : "transparent";
+
+  const ghosts = getGhostSegments(rows, idx, side, tags);
+  const ghostHTML = segmentsToPreviewHTML(ghosts, isBlank, darkMode);
 
   return (
-    <div style={{
-      background: isFocused ? (dk ? "#1e2a45" : "#eef4ff") : (isHeader ? (dk ? "#1a2535" : "#fff") : (!cell.text ? (dk ? "#1e1f30" : "#fafafa") : (dk ? "#232436" : "#fff"))),
-      padding: "0 10px", display: "flex", alignItems: "center", gap: 4,
-      height: ROW_H, maxHeight: ROW_H, overflow: "hidden",
+    <div onMouseDown={onMouseDown} onMouseEnter={onMouseEnter} style={{
+      background: isSelected ? (dk ? "#2c3e50" : "#e0f2fe") : isFocused ? (dk ? "#1e2a45" : "#eef4ff") : (isHeader ? (dk ? "#1a2535" : "#fff") : (!cell.text ? (dk ? "rgba(30,41,59,0.7)" : "#fafafa") : (dk ? "rgba(15,23,42,0.6)" : "#fff"))),
+      padding: "0 10px", display: "flex", alignItems: "center", gap: 0,
+      height: ROW_H, maxHeight: ROW_H, overflow: "hidden", position: "relative"
     }}>
+      {/* 들여쓰기 UI 표시기 (절대 위치로 배치하여 실제 너비 간섭 방지) */}
+      {(cell.indent || 0) > 0 && (
+        <div style={{ position: "absolute", left: 6, display: "flex", gap: 2, alignItems: "center", height: "100%" }}>
+          {Array.from({ length: cell.indent }).map((_, i) => (
+             <div key={i} style={{ width: 4, height: 4, borderRadius: "50%", background: "#ec6619", opacity: 0.8 }} />
+          ))}
+        </div>
+      )}
+      {ghosts.length > 0 && (
+        <div 
+          dangerouslySetInnerHTML={{ __html: ghostHTML }} 
+          style={{ visibility: "hidden", whiteSpace: "pre", paddingLeft: 4, pointerEvents: "none" }} 
+        />
+      )}
       <div
         ref={editRef}
         contentEditable
@@ -440,9 +567,9 @@ function EditorCell({ side, cell, upd, onUp, onDown, first, last, tags, idx, row
         onCompositionStart={() => { composingRef.current = true; }}
         onCompositionEnd={() => { composingRef.current = false; handleInput(); }}
         style={{
-          flex: 1, padding: "0 4px", outline: "none", minWidth: 0,
+          flex: 1, padding: `0 4px 0 ${ghosts.length > 0 ? 0 : 4}px`, outline: "none", minWidth: 0,
           fontSize: 12, lineHeight: `${ROW_H}px`, whiteSpace: "nowrap", overflow: "hidden",
-          cursor: "text", color: dk ? "#d0d0dc" : "inherit",
+          cursor: "text", color: dk ? "#f8fafc" : "inherit",
         }}
       />
       {tagDrop && filteredTags.length > 0 && (
@@ -461,7 +588,15 @@ function EditorSideGroup({ side, label, color, rows, onCellChange, onMove, tags 
       </div>
       {rows.map((row, i) => (
         <div key={row.id} data-row style={{ borderRadius: 4, marginBottom: 1, background: "#e0e0e0" }}>
-          <EditorCell side={side} cell={row[side]} upd={(f, v) => onCellChange(row.id, side, f, v)} onUp={() => onMove(row.id, side, -1)} onDown={() => onMove(row.id, side, 1)} first={i === 0} last={i === rows.length - 1} tags={tags} idx={i} rows={rows} />
+          <EditorCell 
+            side={side} cell={row[side]} 
+            upd={(f, v) => onCellChange(row.id, side, f, v)} 
+            onUp={() => onMove(row.id, side, -1)} 
+            onDown={() => onMove(row.id, side, 1)}
+            onIndent={() => onCellChange(row.id, side, "indent", Math.min(2, (row[side].indent || 0) + 1))}
+            onOutdent={() => onCellChange(row.id, side, "indent", Math.max(0, (row[side].indent || 0) - 1))}
+            first={i === 0} last={i === rows.length - 1} tags={tags} idx={i} rows={rows} 
+          />
         </div>
       ))}
     </div>
@@ -519,17 +654,27 @@ function Preview({ unit, isBlank, fontFamily, tags, printId }) {
               const empty = !cell.text;
               const nxtSegs = side === "l" ? parseInlineMarkup(nextRow?.l.text, tags) : parseInlineMarkup(nextRow?.r.text, tags);
               const nxtHdr = nxtSegs.length === 1 && nxtSegs[0]?.type === "header";
-              const btm = isLast ? "none" : ((isHdr && !nxtHdr) || (!isHdr && nxtHdr)) ? "2px solid #00391e" : "1px solid #e5e7eb";
+              const btm = isLast ? "none" : ((isHdr && !nxtHdr) || (!isHdr && nxtHdr)) ? "2px solid #00391e" : "1px solid #e2e8f0";
               const extra = side === "r" ? { borderLeft: "2px solid #00391e" } : {};
               if (isHdr) return (
                 <div style={{ ...HDR_STYLE, borderBottom: btm, ...extra }}>
                   <RenderSegments segments={segments} />
                 </div>
               );
+              const ghosts = getGhostSegments(unit.rows, i, side, tags);
               return (
                 <div style={{ ...CELL_STYLE, padding: "0 10px", background: empty ? "#fafafa" : "#fff", borderBottom: btm, ...extra }}>
                   {cell.text && (
-                    <RenderSegments segments={segments} isBlank={isBlank} />
+                    <div style={{ display: "flex", alignItems: "center", width: "100%", height: "100%", gap: 0 }}>
+                      {ghosts.length > 0 && (
+                        <div style={{ visibility: "hidden", whiteSpace: "pre", paddingLeft: 4, pointerEvents: "none" }}>
+                           <RenderSegments segments={ghosts} isBlank={isBlank} />
+                        </div>
+                      )}
+                      <div style={{ flex: 1, overflow: "hidden", paddingLeft: ghosts.length > 0 ? 0 : 4, whiteSpace: "nowrap" }}>
+                        <RenderSegments segments={segments} isBlank={isBlank} />
+                      </div>
+                    </div>
                   )}
                 </div>
               );
@@ -547,6 +692,37 @@ function Preview({ unit, isBlank, fontFamily, tags, printId }) {
         {/* Footer: logo center */}
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: -4 }}>
           <img src={logoImg} style={{ height: 48, objectFit: "contain" }} alt="" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════ OverflowModal — 행 삽입 시 데이터 초과 경고창 ═══════ */
+function OverflowModal({ onConfirm, onCancel, darkMode }) {
+  const [foc, setFoc] = useState(1); // 0=취소, 1=확인
+  useEffect(() => {
+    const hk = (e) => {
+      e.stopPropagation(); e.preventDefault();
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") setFoc(f => 1 - f);
+      if (e.key === "Enter") { if (foc === 1) onConfirm(); else onCancel(); }
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", hk, true); // 캡처 단계에서 가로채기
+    return () => window.removeEventListener("keydown", hk, true);
+  }, [foc, onConfirm, onCancel]);
+
+  const dk = !!darkMode;
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: dk ? "rgba(30,41,59,0.7)" : "#fff", padding: 30, borderRadius: 8, width: 360, textAlign: "center", boxShadow: "0 10px 25px rgba(0,0,0,0.2)" }}>
+        <h3 style={{ margin: 0, color: dk ? "#ff6b6b" : "#e53e3e", fontSize: 18 }}>마지막 줄 삭제 경고</h3>
+        <p style={{ fontSize: 14, color: dk ? "#f8fafc" : "#555", marginTop: 15, marginBottom: 25, lineHeight: 1.5 }}>
+          현재 행을 삽입하면 <b>A4 규격(30줄)을 초과한 맨 마지막 줄의 데이터가 삭제됩니다.</b><br/>계속 진행하시겠습니까?
+        </p>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
+          <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: 4, border: dk ? "1px solid #444" : "1px solid #ccc", background: foc === 0 ? (dk ? "#444" : "#e2e8f0") : (dk ? "rgba(255,255,255,0.05)" : "#fff"), color: dk ? "#eee" : "#333", fontWeight: foc === 0 ? 800 : 500, cursor: "pointer", outline: "none" }}>취소</button>
+          <button onClick={onConfirm} style={{ padding: "10px 20px", borderRadius: 4, border: "none", background: foc === 1 ? "#e53e3e" : (dk ? "#872b2b" : "#fc8181"), color: "#fff", fontWeight: foc === 1 ? 800 : 500, cursor: "pointer", outline: "none" }}>삭제 후 삽입</button>
         </div>
       </div>
     </div>
@@ -576,7 +752,7 @@ function RenderSegments({ segments, fontSize = 12, isBlank = false }) {
     if (seg.type === "label") return (
       <span key={i} style={{
         display: "inline-block", padding: "1px 5px", borderRadius: 3, marginRight: 4,
-        background: "#f3f4f6", color: "#374151", fontSize: 11, fontWeight: 600, flexShrink: 0, lineHeight: "16px",
+        background: "#f3f4f6", color: "#334155", fontSize: 11, fontWeight: 600, flexShrink: 0, lineHeight: "16px",
       }}>{seg.value}</span>
     );
     // 일반 텍스트: worksheet이고 vis 아니면 투명, vis면 파란색
@@ -591,7 +767,7 @@ function RenderSegments({ segments, fontSize = 12, isBlank = false }) {
 function MItem({ onClick, children, darkMode }) {
   const [hover, setHover] = useState(false);
   const dk = !!darkMode;
-  return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? (dk ? "#363850" : "#f3f4f6") : "none", textAlign: "left", fontSize: 13, cursor: "pointer", borderRadius: 3, color: dk ? "#d0d0dc" : "#374151" }}>{children}</button>;
+  return <button onClick={(e) => { e.stopPropagation(); onClick(); }} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{ display: "block", width: "100%", padding: "4px 10px", border: "none", background: hover ? (dk ? "#334155" : "#f3f4f6") : "none", textAlign: "left", fontSize: 13, cursor: "pointer", borderRadius: 3, color: dk ? "#f8fafc" : "#334155" }}>{children}</button>;
 }
 
 /* ═══════ PrintThumbnails — 선택된 페이지만 그룹별로 표시 ═══════ */
@@ -643,7 +819,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily,
               </label>
               <span style={{ fontSize: 9, color: "#bbb", marginLeft: "auto" }}>{num}/{totalPages}</span>
             </div>
-            <div style={{ width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #d1d5db", boxSizing: "border-box", background: "#fff" }}>
+            <div style={{ width: thumbW, height: thumbH, overflow: "hidden", borderRadius: 4, border: "2px solid #cbd5e1", boxSizing: "border-box", background: "#fff" }}>
               <div id={`thumb-${key}`} style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: 740, pointerEvents: "none" }}>
                 <Preview unit={u.unit} isBlank={mode === "blank"} fontFamily={fontFamily} tags={tags} printId={`pv-${key}`} />
               </div>
@@ -664,7 +840,7 @@ function PrintThumbnails({ allUnits, printChecked, togglePrintCheck, fontFamily,
     <div id="print-thumbs" style={{ display: "flex", flexDirection: "column", gap: 20, paddingBottom: 20 }}>
       {Object.entries(grouped).map(([gName, items]) => (
         <div key={gName} style={{ background: "#eaeaea", borderRadius: 8, padding: "10px 12px" }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: "#374151", padding: "0 2px 10px", borderBottom: "2px solid #ccc", marginBottom: 12 }}>{gName}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#334155", padding: "0 2px 10px", borderBottom: "2px solid #ccc", marginBottom: 12 }}>{gName}</div>
           {renderSection(items)}
         </div>
       ))}
@@ -686,6 +862,15 @@ export default function App() {
   const [currentFile, setCurrentFile] = useState(null); // 파일 경로
   const [dirty, setDirty] = useState(false); // 변경 여부
   const [settings, setSettingsState] = useState({ ...DEFAULT_SETTINGS }); // 전역 설정
+
+  const updateUnit = (updates) => {
+    setUnit((prev) => {
+      if (!prev) return prev;
+      const newUnit = typeof updates === "function" ? updates(prev) : { ...prev, ...updates };
+      return newUnit;
+    });
+    setDirty(true);
+  };
 
   // UI 상태
   const [darkMode, setDarkMode] = useState(false);
@@ -711,6 +896,187 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const redoRef = useRef([]);    // redo 스택
   const HISTORY_LIMIT = 50;
 
+  const [selection, setSelection] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [insertPending, setInsertPending] = useState(null);
+  const [session, setSession] = useState(null);
+  const [showSignupModal, setShowSignupModal] = useState(false);
+  
+  const [myWorkspaces, setMyWorkspaces] = useState([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState(null);
+  const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState("join");
+  const [wsInput, setWsInput] = useState("");
+
+  const handleWorkspaceAction = async (e) => {
+    e.preventDefault();
+    if (!wsInput.trim()) return alert("입력값이 없습니다.");
+    
+    if (workspaceMode === "create") {
+      const { data: wsData, error: wsError } = await supabase.from('workspaces').insert([{ name: wsInput.trim(), owner_id: session.user.id }]).select().single();
+      if (wsError) return alert(wsError.message);
+      await supabase.from('workspace_members').insert([{ workspace_id: wsData.id, user_id: session.user.id, role: 'owner' }]);
+      alert(`[${wsData.name}] 워크스페이스가 생성되었습니다!\\n초대 코드(ID): ${wsData.id}\\n동료 강사님들께 이 코드를 공유해주세요.`);
+      await loadWorkspaces();
+      setCurrentWorkspace(wsData);
+    } else {
+      const { error: joinError } = await supabase.from('workspace_members').insert([{ workspace_id: wsInput.trim(), user_id: session.user.id }]);
+      if (joinError) return alert("유효하지 않은 코드이거나 이미 가입된 학원입니다.");
+      alert("워크스페이스에 성공적으로 참가했습니다!");
+      await loadWorkspaces();
+      const { data } = await supabase.from('workspaces').select('*').eq('id', wsInput.trim()).single();
+      if (data) setCurrentWorkspace(data);
+    }
+    setWsInput("");
+    setShowWorkspaceModal(false);
+  };
+
+  const loadWorkspaces = async () => {
+    if (!session) return;
+    const { data } = await supabase.from('workspace_members').select('workspace_id, workspaces(id, name, owner_id)').eq('user_id', session.user.id);
+    if (data) setMyWorkspaces(data.map(d => d.workspaces));
+  };
+
+  const handleJoinUrl = async (sessionData) => {
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = params.get("join");
+    if (joinCode && sessionData) {
+      await supabase.from('workspace_members').insert([{ workspace_id: joinCode, user_id: sessionData.user.id }]);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      alert("✨ 원장님/선생님의 학원 공간에 합류하셨습니다!\\n목록을 새로고침합니다.");
+      window.location.reload();
+    }
+  };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) handleJoinUrl(session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadSettings = async () => {
+    if (!session) return;
+    const { data } = await supabase.from('users_settings').select('settings').eq('id', session.user.id).single();
+    if (data?.settings) {
+      if (data.settings.editorSettings) {
+        setSettingsState(prev => ({ ...prev, ...data.settings.editorSettings }));
+      } else if (data.settings.tags) {
+        setSettingsState(prev => ({ ...prev, tags: data.settings.tags }));
+      }
+      if (typeof data.settings.darkMode === "boolean") {
+        setDarkMode(data.settings.darkMode);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (session) {
+      loadSettings();
+      loadWorkspaces();
+      refreshFolder(); // Workspace changed or session initialized
+    }
+  }, [session, currentWorkspace]);
+
+  const startDrag = (rowIdx, colIdx) => {
+    setSelection({ start: { r: rowIdx, c: colIdx }, end: { r: rowIdx, c: colIdx } });
+    setIsDragging(true);
+  };
+  const onDragEnter = (rowIdx, colIdx) => {
+    if (isDragging && selection) {
+      if (selection.start.r !== rowIdx || selection.start.c !== colIdx) {
+        window.getSelection().removeAllRanges(); // 드래그 중 브라우저 텍스트 선택 해제
+      }
+      setSelection(s => s ? { ...s, end: { r: rowIdx, c: colIdx } } : s);
+    }
+  };
+  useEffect(() => {
+    const handleMouseUp = () => setIsDragging(false);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, []);
+
+  useEffect(() => {
+    const handleCopy = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (!selection) return;
+        const isMultiCell = selection.start.r !== selection.end.r || selection.start.c !== selection.end.c;
+        if (!isMultiCell) return; // 단일 셀인 경우 브라우저 기본 동작 유지
+        
+        e.preventDefault();
+        const sr = Math.min(selection.start.r, selection.end.r);
+        const er = Math.max(selection.start.r, selection.end.r);
+        const sc = Math.min(selection.start.c, selection.end.c);
+        const ec = Math.max(selection.start.c, selection.end.c);
+        if (unit && unit.rows) {
+          let tsv = "";
+          for (let r = sr; r <= er; r++) {
+            if (!unit.rows[r]) continue;
+            const rData = [];
+            for (let c = sc; c <= ec; c++) {
+              const side = c === 0 ? "l" : "r";
+              rData.push(unit.rows[r][side].text || "");
+            }
+            tsv += rData.join("\t") + "\n";
+          }
+          navigator.clipboard.writeText(tsv.replace(/\n$/, ""));
+          showToast("선택 범위 복사 완료", "info", 1500);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleCopy);
+    return () => window.removeEventListener("keydown", handleCopy);
+  }, [selection, unit]);
+
+  const handleMultiPaste = (startRowIdx, startColIdx, tsvText) => {
+    const lines = tsvText.split(/\r?\n/).filter(l => l.trim() !== "" || tsvText.includes("\n"));
+    if (lines.length === 0) return;
+    updateUnit((u) => {
+      const rs = u.rows.map(r => ({...r, l:{...r.l}, r:{...r.r}}));
+      lines.forEach((line, rOffset) => {
+        const rIndex = startRowIdx + rOffset;
+        if (rIndex >= rs.length) return;
+        const cells = line.split("\t");
+        cells.forEach((val, cOffset) => {
+          const cIndex = startColIdx + cOffset;
+          if (cIndex === 0) rs[rIndex].l.text = val;
+          else if (cIndex === 1) rs[rIndex].r.text = val;
+        });
+      });
+      return { ...u, rows: rs };
+    });
+  };
+
+  const confirmInsert = () => {
+    if (!insertPending) return;
+    executeInsert(insertPending.rowId, insertPending.shift);
+  };
+  const executeInsert = (rowId, shift) => {
+    updateUnit((u) => {
+      const rs = u.rows.map(r => ({ ...r, l: { ...r.l }, r: { ...r.r } }));
+      const idx = rs.findIndex((r) => r.id === rowId);
+      if (idx === -1) return u;
+      const targetIdx = shift ? idx : idx + 1;
+      rs.pop();
+      const newR = emptyRow();
+      rs.splice(targetIdx, 0, newR);
+      setTimeout(() => { setFocusedRowId(newR.id); setFocusedSide("l"); }, 50);
+      return { ...u, rows: rs };
+    });
+    setInsertPending(null);
+  };
+  const handleInsertRow = (rowId, shift) => {
+    if (!unit) return;
+    const lastRow = unit.rows[unit.rows.length - 1];
+    if (lastRow && (lastRow.l.text || lastRow.r.text)) {
+      setInsertPending({ rowId, shift });
+    } else {
+      executeInsert(rowId, shift);
+    }
+  };
+
   // 출력 관련
   const [allUnits, setAllUnits] = useState([]); // [{filePath, fileName, unit}]
   const [printSelected, setPrintSelected] = useState(new Set()); // 출력 대상 파일 경로
@@ -730,7 +1096,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const setSettings = (s) => {
     setSettingsState((prev) => {
       const next = { ...prev, ...s };
-      window.electronAPI?.saveAppSettings({ editorSettings: next });
+      supabase.from('users_settings').upsert({ id: session?.user?.id, settings: { ...settings, editorSettings: next } });
       return next;
     });
   };
@@ -738,7 +1104,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   const toggleDarkMode = () => {
     setDarkMode((v) => {
       const next = !v;
-      window.electronAPI?.saveAppSettings({ darkMode: next });
+      supabase.from('users_settings').upsert({ id: session?.user?.id, settings: { ...settings, darkMode: next } });
       return next;
     });
   };
@@ -833,177 +1199,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     return p;
   };
 
-  // 파일 열기
-  const openFile = async (filePath) => {
-    if (!window.electronAPI) return;
-    // 현재 파일 저장
-    if (dirty && currentFile && unit) await saveFile();
-    const result = await window.electronAPI.readFile(filePath);
-    if (!result.success) { showToast(`파일 열기 실패: ${result.error || "알 수 없는 오류"}`); return; }
-    try {
-      let d = JSON.parse(result.content);
-      // 구 형식 (전체 데이터 파일) 호환: 첫 번째 unit 추출
-      if (d.units && !d.rows) {
-        const oldSettings = d.settings || {};
-        d = { ...d.units[0], settings: oldSettings };
-      }
-      d = migrateUnit(d);
-      if (!d.rows) return;
-      setUnit(d);
-      setCurrentFile(filePath);
-      setDirty(false);
-      historyRef.current = [];
-      redoRef.current = [];
-      if (editorScrollRef.current) editorScrollRef.current.scrollTop = 0;
-    } catch (err) { console.warn("파일 파싱 실패:", filePath, err); }
-  };
-
-  // 파일 저장
-  const saveFile = async () => {
-    if (!window.electronAPI || !currentFile || !unit) return;
-    const content = JSON.stringify(unit, null, 2);
-    const result = await window.electronAPI.writeFile(currentFile, content);
-    if (result?.success === false) {
-      showToast(`저장 실패: ${result.error || "알 수 없는 오류"}`);
-      return;
-    }
-    setDirty(false);
-  };
-
-  // 자동저장 (debounce 1초)
-  useEffect(() => {
-    if (!dirty || !currentFile || !unit) return;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => saveFile(), 1000);
-    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [unit, dirty]);
-
-  // unit 변경 헬퍼
-  const updateUnit = (fn) => {
-    setUnit((u) => {
-      if (!u) return u;
-      historyRef.current = [...historyRef.current.slice(-(HISTORY_LIMIT - 1)), u];
-      redoRef.current = [];
-      const next = typeof fn === "function" ? fn(u) : { ...u, ...fn };
-      return next;
-    });
-    setDirty(true);
-  };
-
-  const undo = () => {
-    if (!historyRef.current.length) return;
-    setUnit((u) => {
-      if (!u) return u;
-      redoRef.current = [...redoRef.current, u];
-      return historyRef.current.pop();
-    });
-    setDirty(true);
-  };
-
-  const redo = () => {
-    if (!redoRef.current.length) return;
-    setUnit((u) => {
-      if (!u) return u;
-      historyRef.current = [...historyRef.current, u];
-      return redoRef.current.pop();
-    });
-    setDirty(true);
-  };
-
-  // Ctrl+Z / Ctrl+Y 단축키
-  useEffect(() => {
-    const h = (e) => {
-      const k = e.key.toLowerCase();
-      if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
-      if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); redo(); }
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-
-  // 폴더 스캔 결과 적용
-  const applyFolderScan = ({ dirPath, files, groups: grps }) => {
-    setWorkspace(dirPath);
-    setFileList(files);
-    setGroups(grps);
-    // 파일이 열려있지 않으면 첫 번째 파일 자동 열기
-    if (!currentFile && files.length > 0) {
-      openFile(files[0].path);
-    }
-  };
-
-  // 폴더 새로고침
-  const refreshFolder = async () => {
-    if (!window.electronAPI || !workspace) return;
-    const scan = await window.electronAPI.scanFolder(workspace);
-    setFileList(scan.files);
-    setGroups(scan.groups);
-  };
-
-  // Electron 이벤트 + 전역 설정 로드
-  useEffect(() => {
-    if (!window.electronAPI) return;
-    window.electronAPI.onFolderOpened(applyFolderScan);
-    window.electronAPI.onMenuNewUnit(() => addNewUnit(null));
-    window.electronAPI.onMenuSave(() => saveFile());
-    window.electronAPI.getAppSettings().then((s) => {
-      if (s?.editorSettings) setSettingsState({ ...DEFAULT_SETTINGS, ...s.editorSettings });
-      if (s?.darkMode !== undefined) setDarkMode(s.darkMode);
-    });
-    // 새로고침 시 현재 작업폴더 복원
-    window.electronAPI.getWorkspace().then((dir) => {
-      if (dir) {
-        window.electronAPI.scanFolder(dir).then((scan) => {
-          applyFolderScan({ dirPath: dir, ...scan });
-        });
-      }
-    });
-  }, []);
-
-
-  // 출력 파일 선택 토글
-  const togglePrintSelected = (filePath) => setPrintSelected((s) => { const n = new Set(s); n.has(filePath) ? n.delete(filePath) : n.add(filePath); return n; });
-  const toggleAllPrintSelected = () => {
-    const allPaths = fileList.map((f) => f.path);
-    setPrintSelected((s) => s.size === allPaths.length ? new Set() : new Set(allPaths));
-  };
-
-  // 출력 모달 열기
-  const openPrintModal = async () => {
-    if (printSelected.size === 0) return;
-    if (dirty && currentFile && unit) await saveFile();
-    // 선택된 파일만 로드
-    const results = await Promise.all(
-      fileList.filter((f) => printSelected.has(f.path)).map(async (f) => {
-        try {
-          const res = await window.electronAPI.readFile(f.path);
-          if (!res?.success) return null;
-          let d = JSON.parse(res.content);
-          if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || {} };
-          d = migrateUnit(d);
-          return d.rows ? { filePath: f.path, fileName: f.name.replace(/\.(btm|json)$/, ""), group: f.group, unit: d } : null;
-        } catch { return null; }
-      })
-    );
-    setAllUnits(results.filter(Boolean));
-    // printChecked 세팅 (printMode 기반)
-    const checked = new Set();
-    results.filter(Boolean).forEach((u) => {
-      if (printMode === "answer" || printMode === "both") checked.add(`${u.filePath}::answer`);
-      if (printMode === "blank" || printMode === "both") checked.add(`${u.filePath}::blank`);
-    });
-    setPrintChecked(checked);
-    setPrintModalOpen(true);
-  };
-
-  // 인쇄 체크 토글 (모달 내부용)
-  const togglePrintCheck = (key) => setPrintChecked((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
-
-  // img src를 base64 data URL로 변환
+  
   const inlineImages = async (html) => {
     const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
-    const promises = [];
-    let match;
+    const promises = []; let match;
     while ((match = imgRegex.exec(html)) !== null) {
       const src = match[1];
       if (src.startsWith("data:")) continue;
@@ -1021,11 +1220,82 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     return out;
   };
 
-  // 인쇄 실행 — 체크된 썸네일의 HTML을 추출
+  const togglePrintSelected = (filePath) => setPrintSelected((s) => { const n = new Set(s); n.has(filePath) ? n.delete(filePath) : n.add(filePath); return n; });
+  const toggleAllPrintSelected = () => {
+    const allPaths = fileList.map((f) => f.path);
+    setPrintSelected((s) => s.size === allPaths.length ? new Set() : new Set(allPaths));
+  };
+  const togglePrintCheck = (key) => setPrintChecked((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  // 폴더 리프레시 (Supabase)
+  const refreshFolder = async () => {
+    if (!session) return;
+    const { data: docs, error } = await (currentWorkspace ? supabase.from('documents').select('id, group_path, title').eq('workspace_id', currentWorkspace.id) : supabase.from('documents').select('id, group_path, title').is('workspace_id', null).eq('user_id', session.user.id)).order('created_at', { ascending: false });
+    if (error) return console.error(error);
+    const uniqueGroups = [...new Set(docs.map(d => d.group_path || "미분류"))];
+    const grps = uniqueGroups.filter(g => g !== "미분류").map(name => ({ name, path: name }));
+    const flist = docs.map(d => ({ id: d.id, name: d.title + ".btm", path: d.id, group: d.group_path || "미분류" }));
+    setGroups(grps);
+    setFileList(flist);
+    if (!currentFile && flist.length > 0) openFile(flist[0].path);
+  };
+
+  // 파일 열기
+  const openFile = async (id) => {
+    if (dirty && currentFile && unit) await saveFile();
+    const { data, error } = await supabase.from('documents').select('content').eq('id', id).single();
+    if (error) { showToast('파일 열기 실패'); return; }
+    let d = data.content;
+    if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || {} };
+    d = migrateUnit(d);
+    if (!d.rows) return;
+    setUnit(d);
+    setCurrentFile(id);
+    setDirty(false);
+    historyRef.current = [];
+    redoRef.current = [];
+    if (editorScrollRef.current) editorScrollRef.current.scrollTop = 0;
+  };
+
+  // 파일 저장
+  const saveFile = async () => {
+    if (!currentFile || !unit || !session) return;
+    const { error } = await supabase.from('documents').update({ content: unit, title: unit.title }).eq('id', currentFile);
+    if (error) { showToast(`저장 실패: ${error.message}`); return; }
+    setDirty(false);
+    refreshFolder();
+  };
+
+  // 출력 모달 열기
+  const openPrintModal = async () => {
+    if (printSelected.size === 0) return;
+    if (dirty && currentFile && unit) await saveFile();
+    const results = await Promise.all(
+      fileList.filter((f) => printSelected.has(f.path)).map(async (f) => {
+        try {
+          const { data, error } = await supabase.from('documents').select('content').eq('id', f.path).single();
+          if (error) return null;
+          let d = data.content;
+          if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || {} };
+          d = migrateUnit(d);
+          return d.rows ? { filePath: f.path, fileName: f.name.replace(/\.(btm|json)$/, ""), group: f.group, unit: d } : null;
+        } catch { return null; }
+      })
+    );
+    setAllUnits(results.filter(Boolean));
+    const checked = new Set();
+    results.filter(Boolean).forEach((u) => {
+      if (printMode === "answer" || printMode === "both") checked.add(`${u.filePath}::answer`);
+      if (printMode === "blank" || printMode === "both") checked.add(`${u.filePath}::blank`);
+    });
+    setPrintChecked(checked);
+    setPrintModalOpen(true);
+  };
+
+  // 인쇄 실행 (웹 출력)
   const executePrint = async () => {
-    if (!window.electronAPI || printChecked.size === 0) return;
+    if (printChecked.size === 0) return;
     setPrinting(true);
-    // 체크된 썸네일들의 내부 HTML 수집
     const htmlParts = [];
     allUnits.forEach((u) => {
       ["answer", "blank"].forEach((mode) => {
@@ -1039,99 +1309,102 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     const pagesHtml = htmlParts.map((h) =>
       `<div style="width:210mm;min-height:297mm;display:flex;justify-content:center;align-items:center;page-break-after:always">${h}</div>`
     ).join("");
-    const rawHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
       <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}
-      div:last-child{page-break-after:auto!important}</style>
-      </head><body>${pagesHtml}</body></html>`;
-    const html = await inlineImages(rawHtml);
-    await window.electronAPI.printPreview(html);
-    setPrinting(false);
+      div:last-child{page-break-after:auto!important}
+      @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      </style>
+      </head><body>${pagesHtml}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      setPrinting(false);
+      printWindow.close();
+    }, 500);
   };
 
   // 새 단원 생성
   const addNewUnit = async (groupName, unitName) => {
-    if (!window.electronAPI || !workspace) return;
+    if (!session) return;
     if (dirty && currentFile && unit) await saveFile();
-    const dir = groupName ? `${workspace}/${groupName}` : workspace;
-    // 겹치지 않는 파일명
-    let name = unitName || "새 단원"; let n = 1;
     const existing = new Set(fileList.map((f) => f.name));
+    let name = unitName || "새 단원"; let n = 1;
     while (existing.has(`${name}.btm`)) { name = `${unitName || "새 단원"} (${n++})`; }
-    const filePath = `${dir}/${name}.btm`;
-    const newUnit = { title: unitName || name, rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
-    await window.electronAPI.writeFile(filePath, JSON.stringify(newUnit, null, 2));
+    const newUnit = { title: name, rows: padRows([hdrRow("SUMMARY", "PRACTICE")]) };
+    const { data, error } = await supabase.from('documents').insert([{ 
+      user_id: session.user.id, workspace_id: currentWorkspace ? currentWorkspace.id : null, 
+      group_path: groupName || '미분류', 
+      title: name, 
+      content: newUnit 
+    }]).select().single();
+    if (error) { showToast("생성 실패"); return; }
     await refreshFolder();
     setUnit(newUnit);
-    setCurrentFile(filePath);
+    setCurrentFile(data.id);
     setDirty(false);
   };
 
   // 파일 삭제
-  const deleteFile = async (filePath) => {
-    if (!window.electronAPI || !confirm("삭제할까요?")) return;
-    const res = await window.electronAPI.deleteFile(filePath);
-    if (res?.success === false) { showToast(`삭제 실패: ${res.error || "알 수 없는 오류"}`); return; }
-    if (currentFile === filePath) { setUnit(null); setCurrentFile(null); setDirty(false); }
+  const deleteFile = async (id) => {
+    if (!confirm("삭제할까요?")) return;
+    const { error } = await supabase.from('documents').delete().eq('id', id);
+    if (error) { showToast("삭제 실패"); return; }
+    if (currentFile === id) { setUnit(null); setCurrentFile(null); setDirty(false); }
     await refreshFolder();
   };
 
   // 파일 복제
-  const duplicateFile = async (filePath) => {
-    if (!window.electronAPI) return;
-    const result = await window.electronAPI.readFile(filePath);
-    if (!result.success) { showToast(`복제 실패: ${result.error || "파일 읽기 오류"}`); return; }
-    const dir = filePath.replace(/[/\\][^/\\]+$/, "");
-    const baseName = filePath.replace(/^.*[/\\]/, "").replace(/\.(btm|json)$/, "");
-    let name = `${baseName} (복사)`; let n = 1;
+  const duplicateFile = async (id) => {
+    const { data, error } = await supabase.from('documents').select('*').eq('id', id).single();
+    if (error || !data) return showToast("복제 실패");
+    let name = `${data.title} (복사)`; let n = 1;
     const existing = new Set(fileList.map((f) => f.name));
-    while (existing.has(`${name}.btm`)) { name = `${baseName} (복사 ${n++})`; }
-    const newPath = `${dir}/${name}.btm`;
-    let dupData; try { dupData = JSON.parse(result.content); } catch { dupData = null; }
-    const content = dupData ? JSON.stringify({ ...dupData, title: name }, null, 2) : result.content;
-    const writeRes = await window.electronAPI.writeFile(newPath, content);
-    if (writeRes?.success === false) { showToast(`복제 실패: ${writeRes.error || "쓰기 오류"}`); return; }
+    while (existing.has(`${name}.btm`)) { name = `${data.title} (복사 ${n++})`; }
+    let dupData = data.content;
+    if (dupData) dupData.title = name;
+    
+    const { data: newData, error: iErr } = await supabase.from('documents').insert([{
+      user_id: session.user.id, workspace_id: currentWorkspace ? currentWorkspace.id : null,
+      group_path: data.group_path,
+      title: name,
+      content: dupData || {}
+    }]).select().single();
+    if (iErr) return showToast("복제 저장 실패");
     await refreshFolder();
-    openFile(newPath);
+    openFile(newData.id);
   };
 
-  // 파일 → 다른 그룹으로 이동
-  const moveFileToGroup = async (filePath, groupName) => {
-    if (!window.electronAPI || !workspace) return;
-    const fileName = filePath.replace(/^.*[/\\]/, "");
-    const newDir = groupName ? `${workspace}/${groupName}` : workspace;
-    const newPath = `${newDir}/${fileName}`;
-    if (newPath === filePath) return;
-    const renRes = await window.electronAPI.renameFile(filePath, newPath);
-    if (renRes?.success === false) { showToast(`이동 실패: ${renRes.error || "알 수 없는 오류"}`); return; }
-    if (currentFile === filePath) setCurrentFile(newPath);
+  // 그룹 이동
+  const moveFileToGroup = async (id, groupName) => {
+    const { error } = await supabase.from('documents').update({ group_path: groupName || '미분류' }).eq('id', id);
+    if (error) return showToast("이동 실패");
     await refreshFolder();
   };
 
-  // 활성 파일 이름 변경 (단원명과 동기화)
+  // 파일명 연동 변경
   const renameActiveFile = async (newTitle) => {
-    if (!window.electronAPI || !currentFile || !newTitle.trim()) return;
-    const dir = currentFile.replace(/[/\\][^/\\]+$/, "");
-    const newPath = `${dir}/${newTitle.trim()}.btm`;
-    if (newPath === currentFile) return;
-    const res = await window.electronAPI.renameFile(currentFile, newPath);
-    if (res?.success === false) { showToast(`이름 변경 실패: ${res.error || "알 수 없는 오류"}`); return; }
-    setCurrentFile(newPath);
+    if (!currentFile || !newTitle.trim()) return;
+    const { error } = await supabase.from('documents').update({ title: newTitle.trim() }).eq('id', currentFile);
+    if (error) return showToast("변경 실패");
     await refreshFolder();
   };
 
-  // 그룹(폴더) 추가
+  // 그룹 추가 (빈 폴더 개념이 없으므로 가짜 그룹은 불가능, 새 문서 추가 모달에서 지정)
   const addGroup = async () => {
-    if (!window.electronAPI || !workspace || !newGrp.trim()) return;
-    await window.electronAPI.createGroupFolder(`${workspace}/${newGrp.trim()}`);
+    // Web 환경에서는 '폴더생성' 자체가 불가능 (그룹명은 문서를 만들때 지정)
     setNewGrp(""); setAddGroupOpen(false);
-    await refreshFolder();
+    showToast("새 문서를 만들 때 그룹을 지정해 주세요", "info", 2000);
   };
 
-  // 그룹(폴더) 삭제
+  // 그룹 삭제 (안에 든 파일들의 그룹명을 '미분류'로)
   const deleteGroup = async (groupPath) => {
-    if (!window.electronAPI || !confirm("그룹을 삭제할까요? (파일은 미분류로 이동됩니다)")) return;
-    await window.electronAPI.deleteGroupFolder(groupPath);
+    if (!confirm("그룹을 삭제할까요? (파일은 미분류로 이동됩니다)")) return;
+    const { error } = await supabase.from('documents').update({ group_path: '미분류' }).eq('group_path', groupPath).eq('user_id', session.user.id);
+    if (error) { showToast("그룹 삭제 실패"); return; }
     await refreshFolder();
   };
 
@@ -1149,30 +1422,16 @@ const [settingsOpen, setSettingsOpen] = useState(false);
 
 
   const ungroupedFiles = fileList.filter((f) => !f.group);
-  const BS = { padding: "4px 9px", borderRadius: 4, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 500, color: "#555" };
+  const BS = { padding: "4px 9px", borderRadius: 4, border: "1px solid #cbd5e1", background: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 500, color: "#555" };
 
   const fontFamily = `'Pretendard','Malgun Gothic',sans-serif`;
 
-  // 폴더 미선택 시 시작 화면
-  if (!workspace) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", fontFamily: "'Pretendard',sans-serif", background: darkMode ? "#16172a" : "#f0f2f5" }}>
-      <div style={{ textAlign: "center" }}>
-        <img src={logoImg} style={{ height: 64, objectFit: "contain", marginBottom: 16 }} alt="잉그립" />
-        <div style={{ fontSize: 20, fontWeight: 800, color: darkMode ? "#7ecba1" : "#00391e", marginBottom: 4 }}>백지테스트 메이커</div>
-        <div style={{ fontSize: 14, color: darkMode ? "#888" : "#999", marginBottom: 20 }}>작업 폴더를 선택해서 시작하세요</div>
-        <button onClick={() => window.electronAPI?.selectFolder()} style={{ padding: "10px 28px", borderRadius: 8, border: "none", background: "#ec6619", color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer" }}>
-          폴더 열기
-        </button>
-      </div>
-    </div>
-  );
+
 
   const renameGroup = async (oldPath, oldName, newName) => {
-    if (!window.electronAPI || !newName.trim() || newName.trim() === oldName) return;
-    const parentDir = oldPath.replace(/[/\\][^/\\]+$/, "");
-    const newPath = `${parentDir}/${newName.trim()}`;
-    const res = await window.electronAPI.renameFile(oldPath, newPath);
-    if (res?.success === false) { showToast(`그룹 이름 변경 실패: ${res.error || "알 수 없는 오류"}`); return; }
+    if (!newName.trim() || newName.trim() === oldName) return;
+    const { error } = await supabase.from('documents').update({ group_path: newName.trim() }).eq('group_path', oldName).eq('user_id', session.user.id);
+    if (error) { showToast(`그룹 이름 변경 실패`); return; }
     await refreshFolder();
   };
 
@@ -1200,14 +1459,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             onBlur={commitRename}
             onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setEditing(false); }}
             autoFocus onClick={(e) => e.stopPropagation()}
-            style={{ flex: 1, fontSize: 14, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "1px 6px", color: dk ? "#e0e0e8" : "#374151", minWidth: 0 }} />
+            style={{ flex: 1, fontSize: 14, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 3, padding: "1px 6px", color: dk ? "#ffffff" : "#334155", minWidth: 0 }} />
         ) : (
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>{g.name}</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>{g.name}</span>
         )}
-        {!editing && <span style={{ fontSize: 10, color: dk ? "#888" : "#aaa", background: dk ? "#363748" : "#edeef0", borderRadius: 8, padding: "1px 6px", fontWeight: 600, marginRight: 4 }}>{count}</span>}
+        {!editing && <span style={{ fontSize: 10, color: dk ? "#888" : "#aaa", background: dk ? "rgba(255,255,255,0.1)" : "#edeef0", borderRadius: 8, padding: "1px 6px", fontWeight: 600, marginRight: 4 }}>{count}</span>}
         {!editing && (hover || menuOpen) && <div style={{ position: "relative", flexShrink: 0 }}>
           <button onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }} style={{ border: "none", background: "none", cursor: "pointer", fontSize: 15, color: "#aaa", padding: "0 2px", lineHeight: 1 }}>⋯</button>
-          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120, border: dk ? "1px solid #404155" : "none" }}>
+          {menuOpen && <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 120, border: dk ? "1px solid #404155" : "none" }}>
             <MItem onClick={startRename} darkMode={dk}>✎ 이름 변경</MItem>
             <MItem onClick={() => { onDelete(); setMenuOpen(false); }} darkMode={dk}>🗑 그룹 삭제</MItem>
           </div>}
@@ -1242,16 +1501,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         await renameActiveFile(newTitle);
       } else {
         if (newTitle === displayName) return;
-        const dir = f.path.replace(/[/\\][^/\\]+$/, "");
-        const newPath = `${dir}/${newTitle}.btm`;
-        const res = await window.electronAPI.renameFile(f.path, newPath);
-        if (res?.success === false) { showToast(`이름 변경 실패: ${res.error || "알 수 없는 오류"}`); return; }
+        const { error } = await supabase.from('documents').update({ title: newTitle }).eq('id', f.path);
+        if (error) { showToast(`이름 변경 실패`); return; }
         await refreshFolder();
       }
     };
     const toggleMenu = (e) => { e.stopPropagation(); setMenuOpen((v) => !v); };
     const menuPopup = menuOpen && (
-        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "#2a2b3d" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 130, border: dk ? "1px solid #404155" : "none" }}>
+        <div ref={menuRef} style={{ position: "absolute", right: 0, top: "100%", marginTop: 2, background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 8, boxShadow: dk ? "0 8px 30px rgba(0,0,0,.4)" : "0 8px 30px rgba(0,0,0,.15)", padding: 4, zIndex: 100, minWidth: 130, border: dk ? "1px solid #404155" : "none" }}>
           <MItem onClick={() => { startEdit(); setMenuOpen(false); }} darkMode={dk}>✎ 이름 변경</MItem>
           <MItem onClick={() => { duplicateFile(f.path); setMenuOpen(false); }} darkMode={dk}>📋 복제</MItem>
           <MItem onClick={() => { deleteFile(f.path); setMenuOpen(false); }} darkMode={dk}>🗑 삭제</MItem>
@@ -1283,9 +1540,9 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               onBlur={commitEdit}
               onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
               autoFocus onClick={(e) => e.stopPropagation()}
-              style={{ flex: 1, fontSize: 13, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#e0e0e8" : "#1f2937", minWidth: 0 }} />
+              style={{ flex: 1, fontSize: 13, fontWeight: 700, border: "1px solid #f5a855", outline: "none", background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#ffffff" : "#1f2937", minWidth: 0 }} />
           ) : (
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#e0e0e8" : "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{unit?.title || displayName}</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#ffffff" : "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{unit?.title || displayName}</span>
           )}
           {!editing && dirty && <span style={{ color: "#f97316", fontSize: 11, flexShrink: 0 }}>●</span>}
           {dotsArea}
@@ -1308,7 +1565,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               onBlur={commitEdit}
               onKeyDown={(e) => { if (e.key === "Enter") commitEdit(); if (e.key === "Escape") setEditing(false); }}
               autoFocus onClick={(e) => e.stopPropagation()}
-              style={{ width: "100%", fontSize: 13, fontWeight: 600, border: "1px solid #f5a855", outline: "none", background: dk ? "#2a2b3d" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#e0e0e8" : "#1f2937", minWidth: 0 }} />
+              style={{ width: "100%", fontSize: 13, fontWeight: 600, border: "1px solid #f5a855", outline: "none", background: dk ? "rgba(255,255,255,0.05)" : "#fff", borderRadius: 3, padding: "2px 6px", color: dk ? "#ffffff" : "#1f2937", minWidth: 0 }} />
           ) : (
             <div style={{ fontSize: 13, fontWeight: 500, color: dk ? "#9a9aae" : "#555", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
           )}
@@ -1318,8 +1575,158 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     );
   };
 
+  const handleSignup = async (e, email, pass) => { 
+    e.preventDefault(); 
+    const { error } = await supabase.auth.signUp({email, password: pass}); 
+    if (error) alert(error.message); 
+    else alert("가입 승인 메일을 확인해주세요 (설정에 따라 즉시 로그인될 수 있습니다)"); 
+  };
+  
+  const handleLogin = async (e, email, pass) => { 
+    e.preventDefault(); 
+    const { error } = await supabase.auth.signInWithPassword({email, password: pass}); 
+    if (error) alert(error.message); 
+  };
+  
+  if (!session) {
+    let _email="", _pass="", _passConfirm="";
+    return (
+      <div style={{ 
+        position: "relative",
+        height: "100vh", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%)",
+        overflow: "hidden",
+        fontFamily: "'Pretendard', sans-serif"
+      }}>
+        {/* Animated background elements */}
+        <div style={{ position: "absolute", width: "60vw", height: "60vw", minWidth: 400, background: "radial-gradient(circle, rgba(236,102,25,0.12) 0%, rgba(0,0,0,0) 65%)", top: "-15%", left: "-10%", borderRadius: "50%", filter: "blur(60px)" }} />
+        <div style={{ position: "absolute", width: "50vw", height: "50vw", minWidth: 400, background: "radial-gradient(circle, rgba(126,203,161,0.08) 0%, rgba(0,0,0,0) 65%)", bottom: "-10%", right: "-5%", borderRadius: "50%", filter: "blur(60px)" }} />
+        
+        <div style={{ 
+          position: "relative",
+          background: "rgba(30, 41, 59, 0.4)", 
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          border: "1px solid rgba(255, 255, 255, 0.08)",
+          padding: "48px 40px", 
+          borderRadius: "28px", 
+          width: "380px", 
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.1)",
+          textAlign: "center",
+          zIndex: 10
+        }}>
+          <img src={logoImg} alt="Logo" style={{ width: 64, marginBottom: 20, filter: "drop-shadow(0 4px 6px rgba(0,0,0,0.3))" }} />
+          <h2 style={{ color:"#fff", fontSize: "26px", fontWeight:800, margin: "0 0 10px 0", letterSpacing: "-0.02em" }}>Blank Test Maker</h2>
+          <p style={{marginBottom: 36, color:"#94a3b8", fontSize: "14px", fontWeight: 500}}>선생님만의 시험지 데이터를 안전하게 관리하세요</p>
+          
+          <form onSubmit={e=>e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ position: "relative" }}>
+              <input type="email" placeholder="이메일 입력 (예: admin@academy.com)" onChange={e=>_email=e.target.value} 
+                style={{ width: "100%", padding: "16px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", color: "#f8fafc", fontSize: "15px", outline: "none", transition: "all 0.2s", boxSizing: "border-box" }} 
+                onFocus={e => { e.target.style.borderColor = "#ec6619"; e.target.style.background = "rgba(15, 23, 42, 0.8)"; }} 
+                onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.background = "rgba(15, 23, 42, 0.6)"; }}
+              />
+            </div>
+            <div style={{ position: "relative" }}>
+              <input type="password" placeholder="비밀번호 입력" onChange={e=>_pass=e.target.value} 
+                style={{ width: "100%", padding: "16px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", color: "#f8fafc", fontSize: "15px", outline: "none", transition: "all 0.2s", boxSizing: "border-box" }} 
+                onFocus={e => { e.target.style.borderColor = "#ec6619"; e.target.style.background = "rgba(15, 23, 42, 0.8)"; }} 
+                onBlur={e => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.background = "rgba(15, 23, 42, 0.6)"; }}
+              />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+               <button onClick={e => handleLogin(e, _email, _pass)} 
+                 style={{ width: "100%", padding: "16px", background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)", color: "#fff", border: "none", borderRadius: "14px", cursor: "pointer", fontWeight: 700, fontSize: "16px", boxShadow: "0 4px 20px rgba(234, 88, 12, 0.35)", transition: "transform 0.1s, box-shadow 0.2s" }}
+                 onMouseEnter={e => e.target.style.boxShadow = "0 6px 24px rgba(234, 88, 12, 0.45)"}
+                 onMouseLeave={e => { e.target.style.boxShadow = "0 4px 20px rgba(234, 88, 12, 0.35)"; e.target.style.transform = "scale(1)"; }}
+                 onMouseDown={e => e.target.style.transform = "scale(0.97)"} 
+                 onMouseUp={e => e.target.style.transform = "scale(1)"} 
+               >로그인</button>
+               <button onClick={(e) => { e.preventDefault(); setShowSignupModal(true); }} 
+                 style={{ width: "100%", padding: "16px", background: "rgba(255,255,255,0.03)", color: "#94a3b8", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", cursor: "pointer", fontWeight: 600, fontSize: "15px", transition: "all 0.2s" }}
+                 onMouseEnter={e => { e.target.style.background = "rgba(255,255,255,0.08)"; e.target.style.color = "#f8fafc"; e.target.style.borderColor = "rgba(255,255,255,0.15)"; }} 
+                 onMouseLeave={e => { e.target.style.background = "rgba(255,255,255,0.03)"; e.target.style.color = "#94a3b8"; e.target.style.borderColor = "rgba(255,255,255,0.08)"; }}
+               >새 계정으로 시작하기</button>
+            </div>
+          </form>
+        </div>
+
+        {/* 회원가입 모달 */}
+        {showSignupModal && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setShowSignupModal(false)}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#1e293b", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: "24px", padding: "40px", width: "400px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)", position: "relative" }}>
+              <button onClick={() => setShowSignupModal(false)} style={{ position: "absolute", top: 20, right: 24, border: "none", background: "none", color: "#94a3b8", fontSize: "20px", cursor: "pointer" }}>✕</button>
+              <h2 style={{ color: "#fff", fontSize: "22px", fontWeight: 800, margin: "0 0 8px 0" }}>반갑습니다! 👋</h2>
+              <p style={{ color: "#94a3b8", fontSize: "14px", marginBottom: 32 }}>사용하실 이메일과 비밀번호를 입력해 주세요.</p>
+              
+              <form onSubmit={e=>e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <input type="email" placeholder="이메일 입력" onChange={e=>_email=e.target.value} 
+                    style={{ width: "100%", padding: "14px 16px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", color: "#f8fafc", fontSize: "15px", outline: "none", boxSizing: "border-box" }} 
+                    onFocus={e => e.target.style.borderColor = "#ec6619"} onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                  />
+                </div>
+                <div>
+                  <input type="password" placeholder="비밀번호 입력 (6자리 이상)" onChange={e=>_pass=e.target.value} 
+                    style={{ width: "100%", padding: "14px 16px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", color: "#f8fafc", fontSize: "15px", outline: "none", boxSizing: "border-box" }} 
+                    onFocus={e => e.target.style.borderColor = "#ec6619"} onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                  />
+                </div>
+                <div>
+                  <input type="password" placeholder="비밀번호 확인" onChange={e=>_passConfirm=e.target.value} 
+                    style={{ width: "100%", padding: "14px 16px", background: "rgba(15, 23, 42, 0.6)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", color: "#f8fafc", fontSize: "15px", outline: "none", boxSizing: "border-box" }} 
+                    onFocus={e => e.target.style.borderColor = "#ec6619"} onBlur={e => e.target.style.borderColor = "rgba(255,255,255,0.08)"}
+                  />
+                </div>
+                <button onClick={e => {
+                  if (_pass !== _passConfirm) { alert("비밀번호가 서로 일치하지 않습니다."); return; }
+                  handleSignup(e, _email, _pass);
+                }} 
+                  style={{ width: "100%", padding: "16px", background: "#f97316", color: "#fff", border: "none", borderRadius: "12px", cursor: "pointer", fontWeight: 700, fontSize: "16px", marginTop: 12 }}
+                >계정 생성 완료</button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const handleImportLocalFiles = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    let successCount = 0;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        const title = file.name.replace(/\.(btm|json)$/, "");
+        
+        let cData = data;
+        if (cData.units && !cData.rows) cData = { ...cData.units[0], settings: cData.settings || {} };
+        
+        await supabase.from('documents').insert([{
+           user_id: session.user.id, workspace_id: currentWorkspace ? currentWorkspace.id : null,
+           group_path: "로컬 업로드",
+           title: cData.title || title,
+           content: cData
+        }]);
+        successCount++;
+      } catch (err) {
+        console.error("Failed to import", file.name, err);
+      }
+    }
+    alert(`${successCount}개의 내 PC 파일이 클라우드에 성공적으로 백업되었습니다! 목록 화면에서 언제든 확인하세요.`);
+    await refreshFolder();
+    e.target.value = "";
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", fontFamily, fontSize: 15, background: dk ? "#16172a" : "#f0f2f5" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden", fontFamily, fontSize: 15, background: dk ? "#191919" : "#f7f7f5" }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css');
         html,body{margin:0;padding:0;height:100%;overflow:hidden}
@@ -1334,46 +1741,66 @@ const [settingsOpen, setSettingsOpen] = useState(false);
           .no-print{display:none!important}
         }
         input:focus,select:focus{border-color:#3b82f6!important}
-        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${dk ? "#404155" : "#d1d5db"};border-radius:3px}
-        ::-webkit-scrollbar-track{background:${dk ? "#1e1f30" : "transparent"}}
+        ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:${dk ? "#404155" : "#cbd5e1"};border-radius:3px}
+        ::-webkit-scrollbar-track{background:${dk ? "rgba(30,41,59,0.7)" : "transparent"}}
       `}</style>
 
       {/* ═══ 헤더 ═══ */}
-      <div className="no-print" style={{ background: dk ? "#1e1f30" : "#fff", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, padding: "0 14px", height: 42, display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <button onClick={() => setSidebarOpen((v) => !v)} style={{ border: "none", background: sidebarOpen ? (dk ? "#2a2b3d" : "#f3f4f6") : "none", cursor: "pointer", fontSize: 17, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: sidebarOpen ? "#ec6619" : (dk ? "#888" : "#888"), borderRadius: 5, lineHeight: 1 }} title="파일 목록">☰</button>
-        <span style={{ fontSize: 14, fontWeight: 800, color: dk ? "#7ecba1" : "#00391e", letterSpacing: 1.5 }}>백지테스트</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: dk ? "#6b6b80" : "#9a9a9b" }}>메이커</span>
+      <div className="no-print" style={{ background: dk ? "rgba(30,41,59,0.7)" : "#fff", backdropFilter: dk ? "blur(12px)" : "none", WebkitBackdropFilter: dk ? "blur(12px)" : "none", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, padding: "0 14px", height: 42, display: "flex", alignItems: "center", gap: 8, flexShrink: 0, zIndex: 10 }}>
+        <button onClick={() => setSidebarOpen((v) => !v)} style={{ border: "none", background: sidebarOpen ? (dk ? "rgba(255,255,255,0.05)" : "#f3f4f6") : "none", cursor: "pointer", fontSize: 17, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", color: sidebarOpen ? "#ec6619" : (dk ? "#888" : "#888"), borderRadius: 5, lineHeight: 1 }} title="파일 목록">☰</button>
+        <select 
+          value={currentWorkspace ? currentWorkspace.id : "private"} 
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === "private") setCurrentWorkspace(null);
+            else if (val === "new") setShowWorkspaceModal(true);
+            else setCurrentWorkspace(myWorkspaces.find(w => w.id === val));
+          }}
+          style={{ appearance: "none", background: dk ? "rgba(255,255,255,0.05)" : "#f1f5f9", padding: "4px 24px 4px 10px", borderRadius: 6, border: `1px solid ${dk ? "rgba(255,255,255,0.1)" : "#e2e8f0"}`, color: dk ? "#f8fafc" : "#0f172a", fontSize: 13, fontWeight: 700, outline: "none", cursor: "pointer", backgroundImage: `url("data:image/svg+xml;utf8,<svg fill='${dk?'%2394a3b8':'%2364748b'}' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center", backgroundSize: 14 }}
+        >
+          <option value="private">🏠 전체 테스트(개인)</option>
+          {myWorkspaces.map(w => <option key={w.id} value={w.id}>🏢 {w.name}</option>)}
+          <option value="new">+ 학원(채널) 참가/생성</option>
+        </select>
+        {currentWorkspace && (
+          <button onClick={() => {
+             navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?join=${currentWorkspace.id}`);
+             alert("초대 링크가 복사되었습니다! 카톡으로 동료 선생님들께 전달해 주세요.");
+          }} style={{ padding: "4px 10px", borderRadius: 4, background: dk ? "rgba(74, 222, 128, 0.15)" : "#dcfce7", color: dk ? "#4ade80" : "#166534", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", marginLeft: 4 }}>
+            🔗 초대 복사
+          </button>
+        )}
         <div style={{ flex: 1 }} />
-        <button onClick={toggleDarkMode} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>{dk ? "☀️ 라이트" : "🌙 다크"}</button>
-        <button onClick={() => window.electronAPI?.selectFolder()} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>📁 폴더 변경</button>
-        <button onClick={() => setSettingsOpen(true)} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "#2a2b3d" : "#fff", color: dk ? "#d0d0dc" : "#555", borderColor: dk ? "#404155" : "#d1d5db" }}>⚙ 설정</button>
+        <button onClick={toggleDarkMode} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "rgba(255,255,255,0.05)" : "#fff", color: dk ? "#f8fafc" : "#555", borderColor: dk ? "#404155" : "#cbd5e1" }}>{dk ? "☀️ 라이트" : "🌙 다크"}</button>
+        <button onClick={() => setSettingsOpen(true)} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: dk ? "rgba(255,255,255,0.05)" : "#fff", color: dk ? "#f8fafc" : "#555", borderColor: dk ? "#404155" : "#cbd5e1" }}>⚙ 설정</button>
+        <button onClick={() => supabase.auth.signOut()} style={{ ...BS, height: 28, display: "flex", alignItems: "center", gap: 4, background: "#ef4444", color: "#fff", borderColor: "#ef4444", marginLeft: 6 }}>🚪 로그아웃</button>
       </div>
 
       {/* ═══ 메인 영역 ═══ */}
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {/* 세로 바 (사이드바 닫혀있을 때) */}
         {!sidebarOpen && (
-          <div onClick={() => setSidebarOpen(true)} style={{ width: 6, flexShrink: 0, background: dk ? "#2e2f42" : "#e5e7eb", cursor: "pointer", transition: "background .15s, width .15s" }}
+          <div onClick={() => setSidebarOpen(true)} style={{ width: 6, flexShrink: 0, background: dk ? "rgba(255,255,255,0.08)" : "#e2e8f0", cursor: "pointer", transition: "background .15s, width .15s" }}
             onMouseEnter={(e) => { e.currentTarget.style.background = "#ec6619"; e.currentTarget.style.width = "8px"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = dk ? "#2e2f42" : "#e5e7eb"; e.currentTarget.style.width = "6px"; }} />
+            onMouseLeave={(e) => { e.currentTarget.style.background = dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"; e.currentTarget.style.width = "6px"; }} />
         )}
         {/* 통합 사이드바 */}
-        <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: dk ? "#1e1f30" : "#fff", borderRight: sidebarOpen ? `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}` : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0 }}>
+        <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: dk ? "rgba(30,41,59,0.6)" : "#fff", backdropFilter: dk ? "blur(12px)" : "none", WebkitBackdropFilter: dk ? "blur(12px)" : "none", borderRight: sidebarOpen ? `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}` : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0, zIndex: 5 }}>
          <div style={{ minWidth: 280, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, flexShrink: 0 }}>
-            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>파일 목록</span>
+          <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, flexShrink: 0 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>파일 목록</span>
             <button onClick={toggleAllPrintSelected} style={{ border: "none", background: "none", fontSize: 10, color: "#888", cursor: "pointer", fontWeight: 600, padding: "2px 6px" }}>{printSelected.size === fileList.length && fileList.length > 0 ? "전체 해제" : "전체 선택"}</button>
             <button onClick={() => { setAddUnitOpen(true); setNewUnitName(""); setNewUnitGroup(""); }} style={{ padding: "4px 12px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", marginLeft: 4 }}>추가</button>
           </div>
           {addUnitOpen && (
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#f0f0f0"}`, background: dk ? "#232436" : "#fafafa" }}>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#f0f0f0"}`, background: dk ? "rgba(15,23,42,0.6)" : "#fafafa" }}>
               <input value={newUnitName} onChange={(e) => setNewUnitName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && newUnitName.trim()) { addNewUnit(newUnitGroup || null, newUnitName.trim()); setAddUnitOpen(false); } if (e.key === "Escape") setAddUnitOpen(false); }}
                 placeholder="단원 이름" autoFocus
-                style={{ width: "100%", padding: "5px 8px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 6, boxSizing: "border-box", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
+                style={{ width: "100%", padding: "5px 8px", border: `1px solid ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 4, fontSize: 13, outline: "none", marginBottom: 6, boxSizing: "border-box", background: dk ? "rgba(255,255,255,0.05)" : "#fff", color: dk ? "#ffffff" : "inherit" }} />
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <select value={newUnitGroup} onChange={(e) => setNewUnitGroup(e.target.value)}
-                  style={{ flex: 1, padding: "4px 6px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 12, outline: "none", color: newUnitGroup ? (dk ? "#d0d0dc" : "#374151") : "#aaa", background: dk ? "#2a2b3d" : "#fff" }}>
+                  style={{ flex: 1, padding: "4px 6px", border: `1px solid ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 4, fontSize: 12, outline: "none", color: newUnitGroup ? (dk ? "#f8fafc" : "#334155") : "#aaa", background: dk ? "rgba(255,255,255,0.05)" : "#fff" }}>
                   <option value="">미분류</option>
                   {groups.map((g) => <option key={g.name} value={g.name}>{g.name}</option>)}
                 </select>
@@ -1384,8 +1811,8 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             </div>
           )}
           {addGroupOpen && (
-            <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#f0f0f0"}` }}>
-              <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "4px 8px", border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, fontSize: 13, outline: "none", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
+            <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#f0f0f0"}` }}>
+              <input value={newGrp} onChange={(e) => setNewGrp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGroup()} placeholder="그룹 이름" autoFocus style={{ flex: 1, padding: "4px 8px", border: `1px solid ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 4, fontSize: 13, outline: "none", background: dk ? "rgba(255,255,255,0.05)" : "#fff", color: dk ? "#ffffff" : "inherit" }} />
               <button onClick={addGroup} style={{ padding: "4px 10px", border: "none", borderRadius: 4, background: "#ec6619", color: "#fff", fontSize: 12, cursor: "pointer", fontWeight: 600 }}>확인</button>
               <button onClick={() => { setAddGroupOpen(false); setNewGrp(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 13 }}>✕</button>
             </div>
@@ -1410,7 +1837,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                         <input value={inlineAddName} onChange={(e) => setInlineAddName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter" && inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } if (e.key === "Escape") { setInlineAddGroup(null); setInlineAddName(""); } }}
                           placeholder="단원 이름" autoFocus
-                          style={{ flex: 1, padding: "3px 6px", border: "1px solid #d1d5db", borderRadius: 3, fontSize: 12, outline: "none", minWidth: 0 }} />
+                          style={{ flex: 1, padding: "3px 6px", border: "1px solid #cbd5e1", borderRadius: 3, fontSize: 12, outline: "none", minWidth: 0 }} />
                         <button onClick={() => { if (inlineAddName.trim()) { addNewUnit(g.name, inlineAddName.trim()); setInlineAddGroup(null); setInlineAddName(""); } }}
                           style={{ padding: "3px 8px", border: "none", borderRadius: 3, background: inlineAddName.trim() ? "#ec6619" : "#ccc", color: "#fff", fontSize: 11, cursor: inlineAddName.trim() ? "pointer" : "default", fontWeight: 600 }}>확인</button>
                         <button onClick={() => { setInlineAddGroup(null); setInlineAddName(""); }} style={{ border: "none", background: "none", cursor: "pointer", color: "#aaa", fontSize: 12 }}>✕</button>
@@ -1424,7 +1851,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
             })}
             {ungroupedFiles.length > 0 && (
               <div style={{ marginBottom: 6 }}>
-                {groups.length > 0 && <div style={{ padding: "6px 8px", fontSize: 12, fontWeight: 700, color: dk ? "#6b6b80" : "#bbb", borderRadius: 5, background: dk ? "#232436" : "#f5f6f7", marginBottom: 2 }}>미분류</div>}
+                {groups.length > 0 && <div style={{ padding: "6px 8px", fontSize: 12, fontWeight: 700, color: dk ? "#94a3b8" : "#bbb", borderRadius: 5, background: dk ? "rgba(15,23,42,0.6)" : "#f5f6f7", marginBottom: 2 }}>미분류</div>}
                 {ungroupedFiles.map((f) => (
                   <div key={f.path} style={{ display: "flex", alignItems: "center", gap: 0 }}>
                     <input type="checkbox" checked={printSelected.has(f.path)} onChange={() => togglePrintSelected(f.path)}
@@ -1434,13 +1861,13 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                 ))}
               </div>
             )}
-            <button onClick={() => setAddGroupOpen(true)} style={{ width: "100%", padding: "6px 0", border: `1px dashed ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 5, background: "none", fontSize: 12, color: dk ? "#6b6b80" : "#aaa", cursor: "pointer", marginTop: 4 }}>새 그룹</button>
+            <button onClick={() => setAddGroupOpen(true)} style={{ width: "100%", padding: "6px 0", border: `1px dashed ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 5, background: "none", fontSize: 12, color: dk ? "#94a3b8" : "#aaa", cursor: "pointer", marginTop: 4 }}>새 그룹</button>
           </div>
           {/* 하단: 출력 모드 + 출력 버튼 */}
-          <div style={{ borderTop: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, padding: "8px 12px", flexShrink: 0, background: dk ? "#232436" : "#fafafa" }}>
+          <div style={{ borderTop: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, padding: "8px 12px", flexShrink: 0, background: dk ? "rgba(15,23,42,0.6)" : "#fafafa" }}>
             <div style={{ display: "flex", gap: 2, background: dk ? "#1a1b2e" : "#e8e8e8", borderRadius: 5, padding: 2, marginBottom: 8 }}>
               {[["answer", "A 답지"], ["blank", "W 시험지"], ["both", "A+W 둘 다"]].map(([mode, label]) => (
-                <button key={mode} onClick={() => setPrintMode(mode)} style={{ flex: 1, padding: "4px 0", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: printMode === mode ? (dk ? "#2a2b3d" : "#fff") : "transparent", color: printMode === mode ? (mode === "answer" ? (dk ? "#7ecba1" : "#00391e") : mode === "blank" ? "#ec6619" : dk ? "#d0d0dc" : "#333") : (dk ? "#6b6b80" : "#999"), boxShadow: printMode === mode ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
+                <button key={mode} onClick={() => setPrintMode(mode)} style={{ flex: 1, padding: "4px 0", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: printMode === mode ? (dk ? "rgba(255,255,255,0.05)" : "#fff") : "transparent", color: printMode === mode ? (mode === "answer" ? (dk ? "#7ecba1" : "#00391e") : mode === "blank" ? "#ec6619" : dk ? "#f8fafc" : "#333") : (dk ? "#94a3b8" : "#999"), boxShadow: printMode === mode ? "0 1px 2px rgba(0,0,0,.08)" : "none" }}>{label}</button>
               ))}
             </div>
             <button onClick={openPrintModal} disabled={printing || printSelected.size === 0}
@@ -1451,46 +1878,39 @@ const [settingsOpen, setSettingsOpen] = useState(false);
          </div>
         </div>
 
-        {/* 편집 메인 — 2열 통합 에디터 */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div ref={editorScrollRef} style={{ flex: 1, overflowY: "auto", background: dk ? "#1a1b2e" : "#fafafa" }}>
-              {unit ? (
-                <div>
-                  {/* sticky 헤더 */}
-                  <div style={{ position: "sticky", top: 0, zIndex: 10 }}>
-                  {/* 1행: 단원명 + A/W 토글 + 미리보기 */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 12px", height: 42, background: dk ? "#1e1f30" : "#fff", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}` }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#ec6619", flexShrink: 0, letterSpacing: 0.5 }}>단원명</span>
-                    <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="단원명을 입력하세요"
-                      style={{ flex: 1, fontSize: 16, fontWeight: 800, border: "none", outline: "none", background: "transparent", padding: "4px 8px", color: dk ? "#e0e0e8" : "#111", borderBottom: `2px solid ${dk ? "#363748" : "#eee"}`, borderRadius: 0 }}
-                      onFocus={(e) => { e.target.style.borderBottomColor = "#3b82f6"; }}
-                      onBlur={(e) => { e.target.style.borderBottomColor = dk ? "#363748" : "#eee"; }} />
-                    <div style={{ display: "flex", gap: 1, background: dk ? "#2a2b3d" : "#e0e0e0", borderRadius: 4, padding: 1, flexShrink: 0 }}>
-                      <button onClick={() => setPreviewMode("answer")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "answer" ? (dk ? "#363850" : "#fff") : "transparent", color: previewMode === "answer" ? (dk ? "#7ecba1" : "#00391e") : (dk ? "#6b6b80" : "#999") }}>A</button>
-                      <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "2px 8px", borderRadius: 3, border: "none", fontSize: 10, fontWeight: 600, cursor: "pointer", background: previewMode === "worksheet" ? (dk ? "#363850" : "#fff") : "transparent", color: previewMode === "worksheet" ? "#ec6619" : (dk ? "#6b6b80" : "#999") }}>W</button>
-                    </div>
-                    <button onClick={() => setFullPreview("answer")} style={{ padding: "4px 10px", borderRadius: 4, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, background: dk ? "#2a2b3d" : "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", color: dk ? "#d0d0dc" : "#888", flexShrink: 0 }}>A4 미리보기</button>
+        {/* 편집 메인 — A4 페이퍼 캔버스 뷰 */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <div ref={editorScrollRef} style={{ flex: 1, overflowY: "auto", background: dk ? "#191919" : "#f7f7f5", display: "flex", justifyContent: "center", padding: "40px 20px" }}>
+            {unit ? (
+              <div className="a4-canvas" style={{ width: "210mm", minHeight: "297mm", background: dk ? "#252525" : "#fff", boxShadow: "0 10px 40px rgba(0,0,0,0.05)", borderRadius: 4, display: "flex", flexDirection: "column", boxSizing: "border-box" }}>
+                {/* A4 캔버스 내부 헤더 */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "20mm 20mm 10mm 20mm", borderBottom: `1px dashed ${dk ? "rgba(255,255,255,0.1)" : "#eee"}` }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#ec6619", flexShrink: 0 }}>단원명</span>
+                  <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="문서 제목(단원명)을 입력하세요"
+                    style={{ flex: 1, fontSize: 24, fontWeight: 800, border: "none", outline: "none", background: "transparent", color: dk ? "#ffffff" : "#111" }}
+                  />
+                  <div style={{ display: "flex", gap: 1, background: dk ? "rgba(255,255,255,0.05)" : "#f1f5f9", borderRadius: 6, padding: 2, flexShrink: 0 }}>
+                    <button onClick={() => setPreviewMode("answer")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "answer" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "answer" ? (dk ? "#7ecba1" : "#16a34a") : (dk ? "#94a3b8" : "#94a3b8") }}>A (해설지)</button>
+                    <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "worksheet" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "worksheet" ? "#ec6619" : (dk ? "#94a3b8" : "#94a3b8") }}>W (문제지)</button>
                   </div>
-                  </div>
-                  {/* 문법 가이드 */}
-                  <div style={{ width: 684, margin: "12px auto 8px", display: "flex", flexWrap: "wrap", gap: "4px 12px", padding: "0 4px" }}>
-                    {[
-                      ["# ", "헤더"],
-                      ["## ", "소제목"],
-                      ["@태그", "컬러 뱃지"],
-                      ["[라벨]", "회색 뱃지"],
-                      ["! ", "시험지에 표시"],
-                      ["일반 텍스트", "시험지에서 숨김"],
-                      ["Alt+↑↓", "행 이동"],
-                    ].map(([syntax, desc]) => (
-                      <span key={syntax} style={{ fontSize: 10, color: dk ? "#6b6b80" : "#bbb", display: "flex", alignItems: "center", gap: 4 }}>
-                        <kbd style={{ padding: "0 5px", borderRadius: 3, background: dk ? "#2a2b3d" : "#eee", color: dk ? "#9a9aae" : "#888", fontSize: 10, fontFamily: "inherit", fontWeight: 700, lineHeight: "18px" }}>{syntax}</kbd>
-                        {desc}
-                      </span>
-                    ))}
-                  </div>
-                  {/* 에디터 테이블 — A4 출력 표와 동일한 너비(684px) */}
-                  <div style={{ border: `2px solid ${dk ? "#2e5e3e" : "#00391e"}`, borderRadius: 4, overflow: "hidden", width: 684, margin: "0 auto" }}>
+                </div>
+
+                {/* 문법 가이드 영역 */}
+                <div style={{ padding: "10px 20mm", margin: "10px 0", display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
+                  {[
+                    ["# ", "헤더"],  ["## ", "소제목"], ["@태그", "컬러 뱃지"], ["[라벨]", "회색 뱃지"],
+                    ["! ", "항상 표시"], ["일반 문장", "자동 숨김 (W)"], ["Alt+↑↓", "상하 이동"],
+                  ].map(([syntax, desc]) => (
+                    <span key={syntax} style={{ fontSize: 11, color: dk ? "#94a3b8" : "#94a3b8", display: "flex", alignItems: "center", gap: 6 }}>
+                      <kbd style={{ padding: "2px 6px", borderRadius: 4, background: dk ? "rgba(255,255,255,0.05)" : "#f8fafc", border: `1px solid ${dk ? "rgba(255,255,255,0.1)" : "#e2e8f0"}`, color: dk ? "#cbd5e1" : "#475569", fontSize: 11, fontFamily: "inherit", fontWeight: 700 }}>{syntax}</kbd>
+                      {desc}
+                    </span>
+                  ))}
+                </div>
+
+                {/* 실제 입력 및 출력 영역 격자 (A4 Full Width) */}
+                <div style={{ padding: "0 20mm 20mm 20mm", flex: 1 }}>
+                  <div style={{ border: `2px solid ${dk ? "#2e5e3e" : "#00391e"}`, borderRadius: 4, overflow: "hidden", width: "100%" }}>
                   {unit.rows.map((row, i) => {
                     const nextRow = unit.rows[i + 1];
                     const isLast = i >= unit.rows.length - 1;
@@ -1502,15 +1922,23 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                     const nxtRSegs = nextRow ? parseInlineMarkup(nextRow.r.text, settings.tags) : [];
                     const nxtLHdr = nxtLSegs.length === 1 && nxtLSegs[0]?.type === "header";
                     const nxtRHdr = nxtRSegs.length === 1 && nxtRSegs[0]?.type === "header";
-                    const lBtm = isLast ? "none" : ((lHdr && !nxtLHdr) || (!lHdr && nxtLHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`;
-                    const rBtm = isLast ? "none" : ((rHdr && !nxtRHdr) || (!rHdr && nxtRHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`;
+                    const lBtm = isLast ? "none" : ((lHdr && !nxtLHdr) || (!lHdr && nxtLHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`;
+                    const rBtm = isLast ? "none" : ((rHdr && !nxtRHdr) || (!rHdr && nxtRHdr)) ? `2px solid ${dk ? "#2e5e3e" : "#00391e"}` : `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`;
                     return (
                       <div key={row.id} data-row data-rowid={row.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                         <div style={{ borderBottom: lBtm, overflow: "hidden" }}>
-                          <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "l"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("l"); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
+                          <EditorCell side="l" cell={row.l} upd={(f, v) => updateCellField(row.id, "l", f, v)} onUp={() => moveCellContent(row.id, "l", -1)} onDown={() => moveCellContent(row.id, "l", 1)}
+                            onInsert={(shift) => handleInsertRow(row.id, shift)}
+                            onMouseDown={() => startDrag(i, 0)} onMouseEnter={() => onDragEnter(i, 0)} onMultiPaste={(text) => handleMultiPaste(i, 0, text)}
+                            isSelected={selection && i >= Math.min(selection.start.r, selection.end.r) && i <= Math.max(selection.start.r, selection.end.r) && 0 >= Math.min(selection.start.c, selection.end.c) && 0 <= Math.max(selection.start.c, selection.end.c)}
+                            first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "l"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("l"); setSelection(null); setIsDragging(false); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
                         </div>
                         <div style={{ borderLeft: `2px solid ${dk ? "#2e5e3e" : "#00391e"}`, borderBottom: rBtm, overflow: "hidden" }}>
-                          <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)} first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "r"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("r"); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
+                          <EditorCell side="r" cell={row.r} upd={(f, v) => updateCellField(row.id, "r", f, v)} onUp={() => moveCellContent(row.id, "r", -1)} onDown={() => moveCellContent(row.id, "r", 1)}
+                            onInsert={(shift) => handleInsertRow(row.id, shift)}
+                            onMouseDown={() => startDrag(i, 1)} onMouseEnter={() => onDragEnter(i, 1)} onMultiPaste={(text) => handleMultiPaste(i, 1, text)}
+                            isSelected={selection && i >= Math.min(selection.start.r, selection.end.r) && i <= Math.max(selection.start.r, selection.end.r) && 1 >= Math.min(selection.start.c, selection.end.c) && 1 <= Math.max(selection.start.c, selection.end.c)}
+                            first={i === 0} last={isLast} tags={settings.tags} idx={i} rows={unit.rows} isFocused={focusedRowId === row.id && focusedSide === "r"} onCellFocus={() => { setFocusedRowId(row.id); setFocusedSide("r"); setSelection(null); setIsDragging(false); }} isBlank={previewMode === "worksheet"} darkMode={dk} />
                         </div>
                       </div>
                     );
@@ -1518,6 +1946,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   }
                   </div>
                 </div>
+              </div>
               ) : (
                 <div style={{ textAlign: "center", padding: "80px 40px", color: dk ? "#4a4a5e" : "#ccc" }}>
                   <div style={{ fontSize: 36, marginBottom: 10 }}>📝</div>
@@ -1531,22 +1960,22 @@ const [settingsOpen, setSettingsOpen] = useState(false);
       {/* ═══ 출력 모달 (썸네일 미리보기) ═══ */}
       {printModalOpen && (
         <div tabIndex={-1} autoFocus onKeyDown={(e) => { if (e.key === "Escape") setPrintModalOpen(false); }} ref={(el) => el?.focus()} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 100, outline: "none" }} onClick={() => setPrintModalOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "#1e1f30" : "#fff", borderRadius: 10, width: "90vw", maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)", border: dk ? "1px solid #2e2f42" : "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${dk ? "#2e2f42" : "#e5e7eb"}`, flexShrink: 0 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: dk ? "#d0d0dc" : "#374151" }}>출력 미리보기</span>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "rgba(30,41,59,0.7)" : "#fff", borderRadius: 10, width: "90vw", maxWidth: 1100, maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,.3)", border: dk ? "1px solid #2e2f42" : "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, flexShrink: 0 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>출력 미리보기</span>
               <span style={{ fontSize: 12, color: "#999" }}>{printChecked.size}페이지</span>
               <div style={{ flex: 1 }} />
               <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <button onClick={() => setPrintZoom(z => Math.max(30, z - 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, background: dk ? "#2a2b3d" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#666", lineHeight: 1 }}>−</button>
+                <button onClick={() => setPrintZoom(z => Math.max(30, z - 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 4, background: dk ? "rgba(255,255,255,0.05)" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#666", lineHeight: 1 }}>−</button>
                 <span style={{ fontSize: 11, color: "#999", fontWeight: 600, minWidth: 34, textAlign: "center" }}>{printZoom}%</span>
-                <button onClick={() => setPrintZoom(z => Math.min(200, z + 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#d1d5db"}`, borderRadius: 4, background: dk ? "#2a2b3d" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#d0d0dc" : "#666", lineHeight: 1 }}>+</button>
+                <button onClick={() => setPrintZoom(z => Math.min(200, z + 10))} style={{ width: 24, height: 24, border: `1px solid ${dk ? "#404155" : "#cbd5e1"}`, borderRadius: 4, background: dk ? "rgba(255,255,255,0.05)" : "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#666", lineHeight: 1 }}>+</button>
               </div>
               <button onClick={executePrint} disabled={printing || printChecked.size === 0} style={{ padding: "5px 18px", borderRadius: 6, border: "none", background: (printing || printChecked.size === 0) ? "#ccc" : "#ec6619", color: "#fff", fontSize: 13, fontWeight: 700, cursor: (printing || printChecked.size === 0) ? "default" : "pointer", marginLeft: 8 }}>
                 {printing ? "처리 중..." : "🖨 출력"}
               </button>
               <button onClick={() => setPrintModalOpen(false)} style={{ border: "none", background: "none", fontSize: 18, cursor: "pointer", color: "#999", padding: "2px 6px", marginLeft: 4 }}>✕</button>
             </div>
-            <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: dk ? "#16172a" : "#e8e8e8", padding: "16px" }}>
+            <div onWheel={(e) => { if (!e.ctrlKey) return; e.preventDefault(); setPrintZoom(z => Math.max(30, Math.min(200, z + (e.deltaY < 0 ? 10 : -10)))); }} style={{ flex: 1, overflow: "auto", background: dk ? "#0f172a" : "#e8e8e8", padding: "16px" }}>
               <PrintThumbnails allUnits={allUnits} printChecked={printChecked} togglePrintCheck={togglePrintCheck} fontFamily={fontFamily} tags={settings.tags || DEFAULT_TAGS} thumbW={Math.round(370 * printZoom / 100)} />
             </div>
           </div>
@@ -1562,7 +1991,6 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               <button onClick={() => setFullPreview("blank")} style={{ padding: "4px 14px", borderRadius: 4, border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer", background: fullPreview === "blank" ? "#fff" : "rgba(255,255,255,.2)", color: fullPreview === "blank" ? "#ec6619" : "#fff" }}>시험지 (WORKSHEET)</button>
               {(() => {
                 const doPrint = async (modes) => {
-                  if (!window.electronAPI) return;
                   setPrinting(true);
                   setFullPrintMenu(false);
                   // 현재 안 보이는 모드가 필요하면 잠깐 마운트해서 HTML 추출
@@ -1584,7 +2012,13 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                     <style>@page{size:A4;margin:0}body{margin:0;font-family:'Pretendard','Malgun Gothic',sans-serif}div:last-child{page-break-after:auto!important}</style>
                     </head><body>${body}</body></html>`;
                   const html = await inlineImages(rawHtml2);
-                  await window.electronAPI.printPreview(html);
+                  
+                  const printWindow = window.open("", "_blank");
+                  printWindow.document.write(html);
+                  printWindow.document.close();
+                  printWindow.focus();
+                  setTimeout(() => { printWindow.print(); setPrinting(false); printWindow.close(); }, 500);
+
                   setPrinting(false);
                 };
                 return (<div style={{ position: "relative", marginLeft: 8 }} onClick={(e) => e.stopPropagation()}>
@@ -1612,11 +2046,11 @@ const [settingsOpen, setSettingsOpen] = useState(false);
       {/* Settings Modal */}
       {settingsOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={() => setSettingsOpen(false)}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "#1e1f30" : "#fff", borderRadius: 10, padding: 20, width: 420, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)", border: dk ? "1px solid #2e2f42" : "none" }}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 700, color: dk ? "#e0e0e8" : "inherit" }}>설정</h3>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "rgba(30,41,59,0.7)" : "#fff", borderRadius: 10, padding: 20, width: 420, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,.2)", border: dk ? "1px solid #2e2f42" : "none" }}>
+            <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 700, color: dk ? "#ffffff" : "inherit" }}>설정</h3>
             {/* ── 태그 관리 ── */}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: dk ? "#d0d0dc" : "#374151", display: "block", marginBottom: 5 }}>태그 관리</label>
+              <label style={{ fontSize: 13, fontWeight: 600, color: dk ? "#f8fafc" : "#334155", display: "block", marginBottom: 5 }}>태그 관리</label>
               <span style={{ fontSize: 12, color: "#999", display: "block", marginBottom: 5 }}>추가/삭제/색상 변경 가능</span>
               <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 {(settings.tags || []).map((t, idx) => (
@@ -1643,7 +2077,7 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                           }))
                         }));
                       }
-                    }} placeholder="태그 이름" style={{ flex: 1, padding: "4px 7px", border: `1px solid ${dk ? "#404155" : "#e5e7eb"}`, borderRadius: 4, fontSize: 14, outline: "none", background: dk ? "#2a2b3d" : "#fff", color: dk ? "#e0e0e8" : "inherit" }} />
+                    }} placeholder="태그 이름" style={{ flex: 1, padding: "4px 7px", border: `1px solid ${dk ? "#404155" : "#e2e8f0"}`, borderRadius: 4, fontSize: 14, outline: "none", background: dk ? "rgba(255,255,255,0.05)" : "#fff", color: dk ? "#ffffff" : "inherit" }} />
                     <span style={{
                       display: "inline-block", padding: "2px 8px", borderRadius: 3,
                       background: t.c, color: t.tx, fontSize: 12, fontWeight: 700, minWidth: 30, textAlign: "center",
@@ -1658,12 +2092,52 @@ const [settingsOpen, setSettingsOpen] = useState(false);
               <button onClick={() => {
                 const nTags = [...(settings.tags || []), { v: "새태그", c: "#6366F1", tx: "#fff" }];
                 setSettings({ tags: nTags });
-              }} style={{ marginTop: 5, padding: "4px 10px", borderRadius: 4, border: `1px dashed ${dk ? "#404155" : "#ccc"}`, background: "none", fontSize: 13, cursor: "pointer", color: dk ? "#6b6b80" : "#888" }}>+ 태그 추가</button>
+              }} style={{ marginTop: 5, padding: "4px 10px", borderRadius: 4, border: `1px dashed ${dk ? "#404155" : "#ccc"}`, background: "none", fontSize: 13, cursor: "pointer", color: dk ? "#94a3b8" : "#888" }}>+ 태그 추가</button>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}` }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: dk ? "#f8fafc" : "#334155", display: "block", marginBottom: 5 }}>데이터 관리</label>
+              <span style={{ fontSize: 12, color: "#999", display: "block", marginBottom: 14 }}>기존에 작업하신 `.btm` 파일들을 업로드하면 클라우드에 백업됩니다.</span>
+              <label style={{ display: "inline-flex", padding: "8px 14px", borderRadius: 6, border: `1px solid ${dk ? "#404155" : "#ccc"}`, background: dk ? "rgba(255,255,255,0.05)" : "#f9fafb", color: dk ? "#ffffff" : "#333", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                📂 이전 파일 불러오기 (.btm)
+                <input type="file" multiple accept=".btm,.json" style={{ display: "none" }} onChange={async (e) => { setSettingsOpen(false); await handleImportLocalFiles(e); }} />
+              </label>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 24 }}>
               <button onClick={() => setSettingsOpen(false)} style={{ padding: "7px 18px", borderRadius: 5, border: "none", background: "#ec6619", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>닫기</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {insertPending && (
+        <OverflowModal onConfirm={confirmInsert} onCancel={() => setInsertPending(null)} darkMode={dk} />
+      )}
+      {/* 워크스페이스 모달 */}
+      {showWorkspaceModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }} onClick={() => setShowWorkspaceModal(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: dk ? "#1e293b" : "#fff", border: `1px solid ${dk ? "rgba(255,255,255,0.1)" : "#e2e8f0"}`, borderRadius: "24px", padding: "32px", width: "400px", boxShadow: "0 20px 40px rgba(0,0,0,.2)" }}>
+            <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+              <button onClick={() => setWorkspaceMode("join")} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", background: workspaceMode === "join" ? "#ec6619" : (dk ? "rgba(255,255,255,0.1)" : "#f1f5f9"), color: workspaceMode === "join" ? "#fff" : (dk ? "#94a3b8" : "#64748b"), fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>팀 참가하기</button>
+              <button onClick={() => setWorkspaceMode("create")} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", background: workspaceMode === "create" ? "#ec6619" : (dk ? "rgba(255,255,255,0.1)" : "#f1f5f9"), color: workspaceMode === "create" ? "#fff" : (dk ? "#94a3b8" : "#64748b"), fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>새 학원 생성</button>
+            </div>
+            
+            <form onSubmit={handleWorkspaceAction} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {workspaceMode === "join" ? (
+                <>
+                  <p style={{ margin: 0, fontSize: 13, color: dk ? "#cbd5e1" : "#475569" }}>원장님이나 동료 강사님이 공유해준 '초대 코드(ID)'를 붙여넣어 워크스페이스에 참여하세요!</p>
+                  <input value={wsInput} onChange={e=>setWsInput(e.target.value)} placeholder="초대 코드 입력" style={{ width: "100%", padding: "14px", background: dk ? "rgba(15,23,42,0.6)" : "#f8fafc", border: `1px solid ${dk ? "rgba(255,255,255,0.1)" : "#cbd5e1"}`, borderRadius: "10px", color: dk ? "#fff" : "#000", outline: "none", boxSizing: "border-box" }} />
+                  <button type="submit" style={{ padding: "14px", background: "#10b981", color: "#fff", border: "none", borderRadius: "10px", fontWeight: 700, cursor: "pointer", marginTop: 8 }}>초대 코드로 참가</button>
+                </>
+              ) : (
+                <>
+                  <p style={{ margin: 0, fontSize: 13, color: dk ? "#cbd5e1" : "#475569" }}>선생님들의 공용 공간이 될 우리 학원의 이름을 정해주세요. 생성 즉시 팀원들에게 뿌릴 공유 코드가 발급됩니다.</p>
+                  <input value={wsInput} onChange={e=>setWsInput(e.target.value)} placeholder="학원 이름 (예: 깊은생각 대치본원)" style={{ width: "100%", padding: "14px", background: dk ? "rgba(15,23,42,0.6)" : "#f8fafc", border: `1px solid ${dk ? "rgba(255,255,255,0.1)" : "#cbd5e1"}`, borderRadius: "10px", color: dk ? "#fff" : "#000", outline: "none", boxSizing: "border-box" }} />
+                  <button type="submit" style={{ padding: "14px", background: "#ec6619", color: "#fff", border: "none", borderRadius: "10px", fontWeight: 700, cursor: "pointer", marginTop: 8 }}>워크스페이스 채널 오픈</button>
+                </>
+              )}
+            </form>
           </div>
         </div>
       )}
