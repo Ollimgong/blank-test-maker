@@ -146,9 +146,9 @@ const [settingsOpen, setSettingsOpen] = useState(false);
     if (session) {
       loadSettings();
       loadWorkspaces();
-      refreshFolder(); // Workspace changed or session initialized
+      refreshFolder(); // Fetch all docs across workspaces
     }
-  }, [session, currentWorkspace]);
+  }, [session, myWorkspaces.length]);
 
   const startDrag = (rowIdx, colIdx) => {
     setSelection({ start: { r: rowIdx, c: colIdx }, end: { r: rowIdx, c: colIdx } });
@@ -400,25 +400,57 @@ const [settingsOpen, setSettingsOpen] = useState(false);
   // 폴더 리프레시 (Supabase)
   const refreshFolder = async () => {
     if (!session) return;
-    const { data: docs, error } = await (currentWorkspace ? supabase.from('documents').select('id, group_path, title').eq('workspace_id', currentWorkspace.id) : supabase.from('documents').select('id, group_path, title').is('workspace_id', null).eq('user_id', session.user.id)).order('created_at', { ascending: false });
-    if (error) return console.error(error);
-    const uniqueGroups = [...new Set(docs.map(d => d.group_path || "미분류"))];
-    const grps = uniqueGroups.filter(g => g !== "미분류").map(name => ({ name, path: name }));
-    const flist = docs.map(d => ({ id: d.id, name: d.title + ".btm", path: d.id, group: d.group_path || "미분류" }));
-    setGroups(grps);
+    const { data: myDocs, error: myErr } = await supabase.from('documents')
+      .select('id, group_path, title, workspace_id, user_id, updated_at')
+      .eq('user_id', session.user.id);
+      
+    let teamDocs = [];
+    if (myWorkspaces.length > 0) {
+      const wIds = myWorkspaces.map(w => w.id);
+      const { data: tDocs } = await supabase.from('documents')
+        .select('id, group_path, title, workspace_id, user_id, updated_at')
+        .in('workspace_id', wIds)
+        .neq('user_id', session.user.id);
+      if (tDocs) teamDocs = tDocs;
+    }
+    
+    const allDocsRaw = [...(myDocs || []), ...(teamDocs || [])].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    
+    const uniqueGroups = [];
+    const grKeys = new Set();
+    allDocsRaw.forEach(d => {
+       const g = d.group_path || "미분류";
+       const w = d.workspace_id;
+       const key = `${w || 'private'}_${g}`;
+       if (g !== "미분류" && !grKeys.has(key)) {
+         grKeys.add(key);
+         uniqueGroups.push({ name: g, workspace_id: w, path: g });
+       }
+    });
+    setGroups(uniqueGroups);
+    
+    const flist = allDocsRaw.map(d => ({ 
+      id: d.id, name: d.title + ".btm", path: d.id, group: d.group_path || "미분류",
+      workspace_id: d.workspace_id, user_id: d.user_id, updated_at: d.updated_at,
+      isShared: d.user_id === session.user.id && d.workspace_id !== null,
+      sharedTo: d.workspace_id ? myWorkspaces.find(w => w.id === d.workspace_id)?.name : null
+    }));
     setFileList(flist);
+    
     if (!currentFile && flist.length > 0) openFile(flist[0].path);
   };
 
   // 파일 열기
   const openFile = async (id) => {
     if (dirty && currentFile && unit) await saveFile();
-    const { data, error } = await supabase.from('documents').select('content').eq('id', id).single();
+    const { data, error } = await supabase.from('documents').select('content, user_id, updated_at').eq('id', id).single();
     if (error) { showToast('파일 열기 실패'); return; }
     let d = data.content;
     if (d.units && !d.rows) d = { ...d.units[0], settings: d.settings || {} };
     d = migrateUnit(d);
     if (!d.rows) return;
+    d.user_id = data.user_id;
+    d.updated_at = data.updated_at;
     setUnit(d);
     setCurrentFile(id);
     setDirty(false);
@@ -978,19 +1010,10 @@ const [settingsOpen, setSettingsOpen] = useState(false);
         {/* 통합 사이드바 */}
         <div className="no-print" style={{ width: sidebarOpen ? 280 : 0, minWidth: 0, background: dk ? "rgba(30,41,59,0.6)" : "#fff", backdropFilter: dk ? "blur(12px)" : "none", WebkitBackdropFilter: dk ? "blur(12px)" : "none", borderRight: sidebarOpen ? `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}` : "none", display: "flex", flexDirection: "column", overflow: "hidden", transition: "width .2s ease", flexShrink: 0, zIndex: 5 }}>
          <div style={{ minWidth: 280, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-          <WorkspaceSwitcher 
-            currentWorkspace={currentWorkspace} 
-            myWorkspaces={myWorkspaces} 
-            darkMode={dk}
-            onSelectWorkspace={(w) => setCurrentWorkspace(w)}
-            onNewWorkspace={() => setShowWorkspaceModal(true)}
-            onCopyInvite={() => {
-               if(currentWorkspace) {
-                 navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?join=${currentWorkspace.id}`);
-                 showToast("초대 링크가 복사되었습니다!", "info");
-               }
-            }}
-          />
+          <div style={{ padding: "10px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>워크스페이스</span>
+            <button onClick={() => setShowWorkspaceModal(true)} style={{ fontSize: 11, background: "#ec6619", color: "#fff", border: "none", borderRadius: 4, padding: "3px 8px", cursor: "pointer", fontWeight: 700 }}>+ 확장</button>
+          </div>
           <div style={{ padding: "0 12px", height: 42, display: "flex", alignItems: "center", borderBottom: `1px solid ${dk ? "rgba(255,255,255,0.08)" : "#e2e8f0"}`, flexShrink: 0 }}>
             <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: dk ? "#f8fafc" : "#334155" }}>파일 목록</span>
             <button onClick={toggleAllPrintSelected} style={{ border: "none", background: "none", fontSize: 10, color: "#888", cursor: "pointer", fontWeight: 600, padding: "2px 6px" }}>{printSelected.size === fileList.length && fileList.length > 0 ? "전체 해제" : "전체 선택"}</button>
@@ -1124,9 +1147,14 @@ const [settingsOpen, setSettingsOpen] = useState(false);
                   <input value={unit.title} onChange={(e) => updateUnit({ title: e.target.value })} placeholder="문서 제목(단원명)을 입력하세요"
                     style={{ flex: 1, fontSize: 24, fontWeight: 800, border: "none", outline: "none", background: "transparent", color: dk ? "#ffffff" : "#111" }}
                   />
-                  <div style={{ display: "flex", gap: 1, background: dk ? "rgba(255,255,255,0.05)" : "#f1f5f9", borderRadius: 6, padding: 2, flexShrink: 0 }}>
-                    <button onClick={() => setPreviewMode("answer")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "answer" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "answer" ? (dk ? "#7ecba1" : "#16a34a") : (dk ? "#94a3b8" : "#94a3b8") }}>A (해설지)</button>
-                    <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "worksheet" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "worksheet" ? "#ec6619" : (dk ? "#94a3b8" : "#94a3b8") }}>W (문제지)</button>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span style={{ fontSize: 11, color: dk ? "#64748b" : "#94a3b8" }}>
+                      👤 작성: {unit.user_id && session ? (unit.user_id === session.user.id ? "본인" : "팀원") : "알 수 없음"} | 🕒 수정: {unit.updated_at ? new Date(unit.updated_at).toLocaleString('ko-KR') : ""}
+                    </span>
+                    <div style={{ display: "flex", gap: 1, background: dk ? "rgba(255,255,255,0.05)" : "#f1f5f9", borderRadius: 6, padding: 2, flexShrink: 0 }}>
+                      <button onClick={() => setPreviewMode("answer")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "answer" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "answer" ? (dk ? "#7ecba1" : "#16a34a") : (dk ? "#94a3b8" : "#94a3b8") }}>A (해설지)</button>
+                      <button onClick={() => setPreviewMode("worksheet")} style={{ padding: "4px 12px", borderRadius: 4, border: "none", fontSize: 11, fontWeight: 700, cursor: "pointer", background: previewMode === "worksheet" ? (dk ? "#334155" : "#fff") : "transparent", color: previewMode === "worksheet" ? "#ec6619" : (dk ? "#94a3b8" : "#94a3b8") }}>W (문제지)</button>
+                    </div>
                   </div>
                 </div>
 
